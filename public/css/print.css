@@ -1,0 +1,111 @@
+/* ========================================
+   PRINT STYLES
+   ======================================== */
+@media print {
+    /* Hide unnecessary elements */
+    .no-print,
+    .sidebar,
+    .navbar,
+    .btn,
+    .card-tools,
+    .test-controls,
+    .instruction-modal,
+    .spinner-overlay {
+        display: none !important;
+    }
+    
+    /* Page setup */
+    @page {
+        size: A4;
+        margin: 2cm;
+    }
+    
+    body {
+        background: white;
+        color: black;
+        font-size: 12pt;
+        line-height: 1.4;
+    }
+    
+    /* Layout adjustments */
+    .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .container-fluid {
+        padding: 0 !important;
+    }
+    
+    /* Card styling for print */
+    .card {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        margin-bottom: 20px !important;
+        page-break-inside: avoid;
+    }
+    
+    .card-header {
+        background: #f8f9fa !important;
+        border-bottom: 1px solid #ddd !important;
+        color: black !important;
+    }
+    
+    /* Table styling */
+    .table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+    }
+    
+    .table th,
+    .table td {
+        border: 1px solid #ddd !important;
+        padding: 8px !important;
+    }
+    
+    .table thead th {
+        background: #f8f9fa !important;
+        color: black !important;
+    }
+    
+    /* Chart containers */
+    .chart-container {
+        page-break-inside: avoid;
+    }
+    
+    canvas {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    
+    /* Result page specific */
+    .score-summary {
+        background: #f8f9fa !important;
+        color: black !important;
+        border: 1px solid #ddd !important;
+    }
+    
+    .accuracy-circle {
+        border: 1px solid #ddd !important;
+    }
+    
+    .accuracy-inner {
+        background: white !important;
+    }
+    
+    /* Ensure all text is visible */
+    * {
+        color: black !important;
+        text-shadow: none !important;
+    }
+    
+    /* Links */
+    a {
+        text-decoration: none !important;
+    }
+    
+    /* Force background colors */
+    .bg-primary, .bg-success, .bg-info, .bg-warning, .bg-danger {
+        background: #f8f9fa !important;
+    }
+}

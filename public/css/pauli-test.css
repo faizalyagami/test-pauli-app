@@ -1,0 +1,336 @@
+/* ========================================
+   PAULI TEST SPECIFIC STYLES
+   ======================================== */
+
+/* Test Container */
+.test-container {
+    max-width: 95%;
+    margin: 20px auto;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
+}
+
+.test-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 20px;
+    border-radius: 10px 10px 0 0;
+}
+
+.test-header h3 {
+    margin: 0 0 10px 0;
+    font-size: 24px;
+}
+
+.test-header p {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+/* Pauli Grid */
+.pauli-grid {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0;
+}
+
+.pauli-grid th {
+    background: #f8f9fa;
+    padding: 12px 8px;
+    border: 1px solid #ddd;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 10;
+}
+
+.pauli-grid td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+    vertical-align: middle;
+    min-width: 80px;
+}
+
+.grid-cell {
+    position: relative;
+}
+
+.top-number {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 5px;
+}
+
+.bottom-number {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--success-color);
+    margin-top: 5px;
+}
+
+.answer-area {
+    margin: 8px 0;
+    position: relative;
+}
+
+.answer-input {
+    width: 60px;
+    text-align: center;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    padding: 5px;
+    font-size: 18px;
+    font-family: monospace;
+    transition: all 0.3s;
+}
+
+.answer-input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.answer-input:disabled {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+}
+
+/* Line Marker */
+.line-marker {
+    position: relative;
+}
+
+.line-marker::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: red;
+    animation: blink 1s ease-in-out 3;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Skipped Column */
+.skipped-column {
+    background-color: #ffe0e0 !important;
+    position: relative;
+}
+
+.skipped-column::before {
+    content: 'SKIP';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: red;
+    color: white;
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+/* Timer */
+.timer-container {
+    text-align: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.timer {
+    font-size: 48px;
+    font-weight: bold;
+    font-family: monospace;
+    color: var(--primary-color);
+    line-height: 1;
+}
+
+.timer-label {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.line-counter {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.line-counter .badge {
+    font-size: 18px;
+    padding: 8px 12px;
+}
+
+/* Test Controls */
+.test-controls {
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid #eee;
+    background: #f8f9fa;
+}
+
+/* Instruction Modal */
+.instruction-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.instruction-content {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.instruction-content h3 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+}
+
+.instruction-content ul {
+    margin: 20px 0;
+    padding-left: 20px;
+}
+
+.instruction-content li {
+    margin: 10px 0;
+    line-height: 1.6;
+}
+
+.example-box {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+    text-align: center;
+}
+
+.example-numbers {
+    font-size: 24px;
+    font-family: monospace;
+    font-weight: bold;
+}
+
+/* Result Page */
+.result-container {
+    padding: 20px;
+}
+
+.score-summary {
+    background: linear-gradient(135deg, var(--success-color), #2ecc71);
+    color: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.score-number {
+    font-size: 64px;
+    font-weight: bold;
+    margin: 20px 0;
+}
+
+.accuracy-circle {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.accuracy-inner {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.chart-container {
+    margin: 20px 0;
+    height: 300px;
+}
+
+.analysis-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 20px;
+}
+
+.analysis-section h5 {
+    color: var(--primary-color);
+    margin-bottom: 15px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .pauli-grid {
+        font-size: 12px;
+    }
+    
+    .answer-input {
+        width: 45px;
+        font-size: 14px;
+    }
+    
+    .timer {
+        font-size: 36px;
+    }
+}
+
+@media (max-width: 768px) {
+    .pauli-grid th,
+    .pauli-grid td {
+        padding: 4px;
+        min-width: 60px;
+    }
+    
+    .answer-input {
+        width: 35px;
+        font-size: 12px;
+    }
+    
+    .top-number,
+    .bottom-number {
+        font-size: 12px;
+    }
+    
+    .score-number {
+        font-size: 36px;
+    }
+}
