@@ -97,9 +97,44 @@ class PauliTestController extends Controller
         $questions = $test->pauliQuestions()
             ->orderBy('column_number')
             ->orderBy('row_number')
-            ->get();
+            ->get()
+            ->groupBy('column_number');
 
         return view('tester.tests.edit', compact('test', 'questions'));
+    }
+
+    public function updateTest(Request $request, Test $test)
+    {
+        $validated = $request->validate([
+            'test_code' => 'required|unique:tests,test_code,' . $test->id,
+            'test_name' => 'required',
+            'description' => 'nullable',
+            'duration_minutes' => 'required|integer|min:1',
+            'total_questions' => 'required|integer|min:1',
+            'total_columns' => 'required|integer|min:1',
+            'rows_per_column' => 'required|integer|min:1',
+            'is_active' => 'boolean',
+        ]);
+        
+        $validated['is_active'] = $request->has('is_active');
+        
+        $test->update($validated);
+        
+        return redirect()->route('tester.tests.edit', $test)->with('success', 'Test updated successfully');
+    }
+
+    public function destroyTest(Test $test)
+    {
+        try {
+            // Delete related questions first
+            $test->pauliQuestions()->delete();
+            // Delete test
+            $test->delete();
+            
+            return redirect()->route('tester.tests')->with('success', 'Test deleted successfully');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Failed to delete test: ' . $e->getMessage());
+        }
     }
 
     public function generateQuestions(Test $test)

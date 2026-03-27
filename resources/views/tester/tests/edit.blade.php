@@ -96,13 +96,16 @@
         }
     }
 
-    document.querySelectorAll('.question-value').forEach(input => {
-        input.addEventListener('change', function() {
-            fetch(`/tester/questions/{{ $test->id }}/${this.dataset.col}/${this.dataset.row}`, {
-                method: 'PUT',
+    document.querySelectorAll('.question-input').forEach(input => {
+        input.addEventListener('change', function () {
+
+            if (!this.dataset.id) return; // skip kalau belum ada question
+
+            fetch(`/tester/questions/${this.dataset.id}`, {
+                method: "PUT",
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": "{{ csrf_token() }}"
                 },
                 body: JSON.stringify({
                     value: this.value
