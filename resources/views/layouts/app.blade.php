@@ -22,9 +22,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
     <style>
-        /* ========================================
-           GLOBAL STYLES
-        ======================================== */
         :root {
             --primary-color: #3498db;
             --secondary-color: #2c3e50;
@@ -32,6 +29,7 @@
             --danger-color: #e74c3c;
             --warning-color: #f39c12;
             --info-color: #3498db;
+            --sidebar-width: 260px;
         }
 
         * {
@@ -44,16 +42,12 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f5f5f5;
             color: #333;
+            overflow-x: hidden;
         }
 
-        /* Layout */
-        .wrapper {
-            display: flex;
-            width: 100%;
-        }
-
+        /* Sidebar */
         .sidebar {
-            width: 260px;
+            width: var(--sidebar-width);
             background: #2c3e50;
             color: white;
             position: fixed;
@@ -118,54 +112,55 @@
             width: 20px;
         }
 
+        /* Main Content */
         .main-content {
-            margin-left: 260px;
-            flex: 1;
+            margin-left: var(--sidebar-width);
             min-height: 100vh;
+            background: #f5f5f5;
         }
 
+        /* Navbar */
         .navbar-top {
             background: white;
-            padding: 15px 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 12px 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 99;
         }
 
+        /* Content Area */
         .content {
-            padding: 20px;
+            padding: 24px;
         }
 
         /* Cards */
         .card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
             transition: all 0.3s;
         }
 
         .card:hover {
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
         }
 
         .card-header {
             background: white;
             border-bottom: 1px solid #eee;
-            padding: 15px 20px;
+            padding: 16px 20px;
             font-weight: 600;
-            border-radius: 10px 10px 0 0 !important;
+            border-radius: 12px 12px 0 0 !important;
         }
 
-        .card-header h5 {
+        .card-header h5,
+        .card-header h6 {
             margin: 0;
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .card-tools {
-            float: right;
         }
 
         .card-body {
@@ -174,34 +169,19 @@
 
         /* Statistics Cards */
         .stat-card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 20px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+            border-radius: 12px;
+            overflow: hidden;
         }
 
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
         }
 
-        .stat-card .stat-icon {
-            font-size: 40px;
-            margin-bottom: 10px;
-        }
-
-        .stat-card .stat-value {
-            font-size: 32px;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-
-        .stat-card .stat-label {
-            color: #666;
-            font-size: 14px;
+        .stat-card .card-body {
+            padding: 1.25rem;
         }
 
         /* Tables */
@@ -210,7 +190,6 @@
         }
 
         .table {
-            width: 100%;
             margin-bottom: 0;
         }
 
@@ -220,18 +199,31 @@
             font-weight: 600;
             font-size: 13px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px;
         }
 
         .table tbody tr:hover {
             background: #f8f9fa;
         }
 
+        .table td,
+        .table th {
+            vertical-align: middle;
+            padding: 12px;
+        }
+
         /* Buttons */
         .btn {
-            border-radius: 5px;
+            border-radius: 8px;
             padding: 8px 20px;
             font-weight: 500;
-            transition: all 0.3s;
+            transition: all 0.2s;
+        }
+
+        .btn-sm {
+            padding: 4px 12px;
+            font-size: 12px;
         }
 
         .btn-primary {
@@ -241,61 +233,44 @@
 
         .btn-primary:hover {
             background: #2980b9;
-            border-color: #2980b9;
             transform: translateY(-1px);
         }
 
         /* Badges */
         .badge {
-            padding: 5px 10px;
+            padding: 6px 12px;
             font-weight: 500;
-            border-radius: 5px;
+            border-radius: 20px;
+            font-size: 12px;
         }
 
         /* Alerts */
         .alert {
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             margin-bottom: 20px;
         }
 
-        /* Loading Spinner */
-        .spinner-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--primary-color);
+        /* Avatar */
+        .avatar-sm {
+            width: 35px;
+            height: 35px;
+            background: #e9ecef;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+        /* Gradient */
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
-                margin-left: -260px;
+                margin-left: calc(-1 * var(--sidebar-width));
             }
 
             .sidebar.active {
@@ -306,8 +281,16 @@
                 margin-left: 0;
             }
 
-            .stat-card .stat-value {
-                font-size: 24px;
+            .content {
+                padding: 15px;
+            }
+
+            .navbar-top {
+                padding: 10px 16px;
+            }
+
+            .stat-card h2 {
+                font-size: 1.5rem;
             }
         }
 
@@ -331,58 +314,51 @@
 </head>
 
 <body>
-    <div class="wrapper">
-        @include('components.sidebar')
+    <!-- Sidebar -->
+    @include('components.sidebar')
 
-        <div class="main-content">
-            @include('components.header')
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header/Navbar -->
+        @include('components.header')
 
-            <main class="content">
-                <div class="container-fluid">
-                    @if(session('success'))
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <i class="fas fa-check-circle"></i> {{ session('success') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    @endif
+        <!-- Page Content -->
+        <main class="content">
+            @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i> {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            @endif
 
-                    @if(session('error'))
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="fas fa-exclamation-circle"></i> {{ session('error') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    @endif
+            @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i> {{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            @endif
 
-                    @if(session('warning'))
-                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                        <i class="fas fa-exclamation-triangle"></i> {{ session('warning') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    @endif
+            @if(session('warning'))
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i> {{ session('warning') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            @endif
 
-                    @yield('content')
-                </div>
-            </main>
+            @yield('content')
+        </main>
 
-            @include('components.footer')
-        </div>
+        <!-- Footer -->
+        @include('components.footer')
     </div>
 
-    <!-- jQuery -->
+    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-    <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
-
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-    <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
@@ -416,56 +392,6 @@
             });
         };
 
-        window.confirmAction = function(title, text, callback) {
-            Swal.fire({
-                title: title,
-                text: text,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#3498db',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Ya, lanjutkan!',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.isConfirmed && callback) {
-                    callback();
-                }
-            });
-        };
-
-        window.confirmDelete = function(formId, message = 'Data akan dihapus secara permanen!') {
-            Swal.fire({
-                title: 'Apakah Anda yakin?',
-                text: message,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Ya, hapus!',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    $(`#${formId}`).submit();
-                }
-            });
-        };
-
-        window.formatNumber = function(number) {
-            return new Intl.NumberFormat('id-ID').format(number);
-        };
-
-        window.formatDate = function(dateString) {
-            if (!dateString) return '-';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('id-ID', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        };
-
         // Auto dismiss alerts
         $(document).ready(function() {
             setTimeout(function() {
@@ -481,9 +407,6 @@
                     $btn.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
                 }
             });
-
-            // Initialize tooltips
-            $('[data-toggle="tooltip"]').tooltip();
 
             // Toggle sidebar on mobile
             $('#sidebarToggle').on('click', function() {

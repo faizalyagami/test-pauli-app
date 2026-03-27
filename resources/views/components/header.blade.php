@@ -1,7 +1,7 @@
 {{-- resources/views/components/header.blade.php --}}
 <nav class="navbar-top">
     <div class="d-flex align-items-center">
-        <button class="btn btn-link d-md-none text-dark" id="sidebarToggle">
+        <button class="btn btn-link d-md-none text-dark p-0" id="sidebarToggle">
             <i class="fas fa-bars fa-lg"></i>
         </button>
         <div class="ms-2">
@@ -13,7 +13,7 @@
     <div class="d-flex align-items-center gap-3">
         <!-- Notification Bell -->
         <div class="dropdown">
-            <button class="btn btn-link position-relative text-dark" type="button" data-bs-toggle="dropdown">
+            <button class="btn btn-link position-relative text-dark p-0" type="button" data-bs-toggle="dropdown">
                 <i class="fas fa-bell fa-lg"></i>
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notificationBadge" style="font-size: 10px;">
                     0
@@ -39,7 +39,7 @@
 
         <!-- User Dropdown -->
         <div class="dropdown">
-            <button class="btn btn-link dropdown-toggle d-flex align-items-center gap-2 text-dark text-decoration-none" type="button" data-bs-toggle="dropdown">
+            <button class="btn btn-link dropdown-toggle d-flex align-items-center gap-2 text-dark text-decoration-none p-0" type="button" data-bs-toggle="dropdown">
                 @if(Auth::user()->avatar)
                 <img src="{{ Storage::url(Auth::user()->avatar) }}"
                     class="rounded-circle"
@@ -155,93 +155,6 @@
     @csrf
 </form>
 
-<style>
-    .navbar-top {
-        background: white;
-        padding: 12px 24px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        position: sticky;
-        top: 0;
-        z-index: 100;
-    }
-
-    .navbar-top .btn-link {
-        text-decoration: none;
-        padding: 0;
-        border: none;
-        background: transparent;
-    }
-
-    .navbar-top .btn-link:hover {
-        opacity: 0.8;
-    }
-
-    .avatar-sm {
-        width: 32px;
-        height: 32px;
-        background: #e9ecef;
-        border-radius: 50%;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .dropdown-menu {
-        border-radius: 12px;
-        animation: fadeInDown 0.2s ease-out;
-    }
-
-    @keyframes fadeInDown {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .dropdown-item {
-        transition: all 0.2s ease;
-        font-size: 14px;
-    }
-
-    .dropdown-item:hover {
-        background-color: #f8f9fa;
-        padding-left: 20px;
-    }
-
-    .dropdown-header {
-        border-radius: 12px 12px 0 0;
-    }
-
-    .badge {
-        font-size: 9px;
-        padding: 3px 6px;
-        margin-top: -5px;
-        margin-right: -5px;
-    }
-
-    @media (max-width: 768px) {
-        .navbar-top {
-            padding: 10px 16px;
-        }
-
-        .navbar-top h5 {
-            font-size: 16px;
-        }
-
-        .dropdown-menu {
-            min-width: 280px;
-        }
-    }
-</style>
-
 @push('scripts')
 <script>
     // Update current date and time
@@ -262,46 +175,5 @@
     }
     updateDateTime();
     setInterval(updateDateTime, 60000);
-
-    // Simulate notification count (you can replace with actual data from server)
-    function updateNotifications() {
-        // You can fetch notifications from server via AJAX
-        const badge = document.getElementById('notificationBadge');
-        const notificationList = document.getElementById('notificationList');
-
-        // Example: fetch('/api/notifications/unread-count')
-        // .then(response => response.json())
-        // .then(data => {
-        //     if (data.count > 0) {
-        //         badge.textContent = data.count;
-        //         badge.style.display = 'block';
-        //     } else {
-        //         badge.style.display = 'none';
-        //     }
-        // });
-
-        // Temporary: hide badge if no notifications
-        const unreadCount = 0;
-        if (unreadCount === 0) {
-            badge.style.display = 'none';
-        } else {
-            badge.textContent = unreadCount;
-            badge.style.display = 'block';
-        }
-    }
-    updateNotifications();
-
-    // Mark all notifications as read
-    document.getElementById('markAllRead')?.addEventListener('click', function(e) {
-        e.preventDefault();
-        // Example: fetch('/api/notifications/mark-all-read', { method: 'POST' })
-        // .then(() => {
-        //     document.getElementById('notificationBadge').style.display = 'none';
-        //     document.getElementById('notificationList').innerHTML = '<div class="text-center py-3"><i class="fas fa-check-circle me-2"></i> All notifications read</div>';
-        // });
-
-        document.getElementById('notificationBadge').style.display = 'none';
-        document.getElementById('notificationList').innerHTML = '<div class="text-center py-3"><i class="fas fa-check-circle me-2 text-success"></i> All notifications marked as read</div>';
-    });
 </script>
 @endpush

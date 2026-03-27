@@ -48,8 +48,7 @@
 
         <li class="menu-header">Pengaturan</li>
 
-        {{-- PERBAIKAN: Gunakan route tester.settings.index --}}
-        <li class="{{ request()->routeIs('tester.settings*') ? 'active' : '' }}">
+        <li class="{{ request()->routeIs('tester.settings.index') ? 'active' : '' }}">
             <a href="{{ route('tester.settings.index') }}">
                 <i class="fas fa-cog"></i>
                 <span>Pengaturan</span>

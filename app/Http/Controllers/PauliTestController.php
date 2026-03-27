@@ -104,12 +104,11 @@ class PauliTestController extends Controller
 
     public function generateQuestions(Test $test)
     {
-        DB::beginTransaction();
         try {
-            // Delete existing questions
+            // Hapus semua soal yang ada
             $test->pauliQuestions()->delete();
 
-            // Generate new questions
+            // Buat soal baru
             for ($col = 1; $col <= $test->total_columns; $col++) {
                 for ($row = 1; $row <= $test->rows_per_column; $row++) {
                     PauliQuestion::create([
@@ -121,13 +120,12 @@ class PauliTestController extends Controller
                 }
             }
 
-            DB::commit();
-            return redirect()->back()->with('success', 'Questions generated successfully');
+            return response()->json(['success' => true]);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()->with('error', 'Failed to generate questions: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
     }
+
     public function updateQuestion(Request $request, PauliQuestion $question)
     {
         $request->validate([
