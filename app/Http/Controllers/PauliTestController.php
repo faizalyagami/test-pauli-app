@@ -126,13 +126,29 @@ class PauliTestController extends Controller
     public function destroyTest(Test $test)
     {
         try {
-            // Delete related questions first
+            // Hapus semua soal terkait
             $test->pauliQuestions()->delete();
-            // Delete test
+            
+            // Hapus test
             $test->delete();
             
+            if (request()->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test deleted successfully'
+                ]);
+            }
+            
             return redirect()->route('tester.tests')->with('success', 'Test deleted successfully');
+            
         } catch (\Exception $e) {
+            if (request()->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+            
             return redirect()->back()->with('error', 'Failed to delete test: ' . $e->getMessage());
         }
     }
