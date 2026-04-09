@@ -1,257 +1,388 @@
-{{-- resources/views/pauli-test/result.blade.php --}}
 @extends('layouts.app')
 
 @section('title', 'Hasil Tes Pauli - ' . $session->applicant->full_name)
 
 @section('content')
-<div class="row">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body text-center">
-                <h5>Informasi Peserta</h5>
-                <hr>
-                <p><strong>Nama:</strong> {{ $session->applicant->full_name }}</p>
-                <p><strong>No. Peserta:</strong> {{ $session->applicant->participant_numb }}</p>
-                <p><strong>Tanggal Tes:</strong> {{ \Carbon\Carbon::parse($session->start_time)->format('d/m/Y H:i') }}</p>
-                <p><strong>Durasi:</strong> {{ $session->start_time->diffInMinutes($session->end_time) }} menit</p>
-                <p><strong>Kolom Dilewati:</strong> {{ $session->skipped_columns }}</p>
+<div class="container-fluid px-0">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-gradient-primary text-white border-0">
+                <div class="card-body py-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-1 fw-bold">
+                                <i class="fas fa-chart-line me-2"></i> Grafik Kerja Pauli Test
+                            </h4>
+                            <p class="mb-0 opacity-75">Hasil analisis tes Pauli - Kurva kerja dan performa</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-chart-bar fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body text-center">
-                <h5>Skor Akhir</h5>
-                <div class="display-1 text-primary">{{ number_format($scoreData['correct']) }}</div>
-                <p>Jawaban Benar</p>
-                <hr>
-                <p>Total Dikerjakan: {{ number_format($scoreData['total_attempted']) }}</p>
-                <p>Akurasi: {{ number_format($scoreData['accuracy'], 1) }}%</p>
+    <!-- Informasi Peserta -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="fas fa-user me-2 text-primary"></i> Data Peserta
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <th width="35%">Nama</th>
+                                    <td><strong>{{ $session->applicant->full_name }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>Nomor</th>
+                                    <td>{{ $session->applicant->participant_numb }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Tgl. Lahir</th>
+                                    <td>{{ $session->applicant->date_of_birth ? $session->applicant->date_of_birth->format('d F Y') : '-' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-4">
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <th width="35%">Pendidikan</th>
+                                    <td>{{ $session->applicant->education_background ?? '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Sk. Bangsa</th>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <th>Tgl. Pemeriksaan</th>
+                                    <td>{{ $session->created_at->format('d F Y') }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-4">
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <th width="35%">LQ</th>
+                                    <td><strong class="text-primary">{{ number_format($scoreData['accuracy'], 2) }}%</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>Keterangan</th>
+                                    <td>{{ $this->getKeterangan($scoreData['accuracy']) }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="text-center">Akurasi</h5>
-                <canvas id="accuracyChart" height="200"></canvas>
+    <!-- Statistik Utama -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bg-primary text-white border-0">
+                <div class="card-body text-center">
+                    <h6 class="mb-2">Jumlah</h6>
+                    <h2 class="mb-0">{{ number_format($scoreData['total_attempted']) }}</h2>
+                    <small>total jawaban</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-danger text-white border-0">
+                <div class="card-body text-center">
+                    <h6 class="mb-2">Salah</h6>
+                    <h2 class="mb-0">{{ number_format($scoreData['total_attempted'] - $scoreData['correct']) }}</h2>
+                    <small>jawaban salah</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-white border-0">
+                <div class="card-body text-center">
+                    <h6 class="mb-2">Dibetulkan</h6>
+                    <h2 class="mb-0">{{ number_format($scoreData['correct']) }}</h2>
+                    <small>jawaban benar</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white border-0">
+                <div class="card-body text-center">
+                    <h6 class="mb-2">Tinggi</h6>
+                    <h2 class="mb-0">{{ number_format($maxLineScore ?? 0) }}</h2>
+                    <small>puncak tertinggi</small>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>Performa per Interval (Setiap 3 Menit)</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="lineChart" height="300"></canvas>
+    <!-- Grafik Kerja -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="fas fa-chart-line me-2 text-primary"></i> Grafik Kerja Pauli Test
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="workCurveChart" style="height: 400px; width: 100%;"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>Performa per Kolom</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="columnChart" height="300"></canvas>
+    <!-- Statistik Per Interval -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="fas fa-table me-2 text-primary"></i> Statistik Per Interval (Setiap 3 Menit)
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr class="text-center">
+                                    <th>Interval</th>
+                                    <th>Jumlah</th>
+                                    <th>Salah</th>
+                                    <th>%</th>
+                                    <th>Dibetulkan</th>
+                                    <th>%</th>
+                                    <th>Penyimpangan</th>
+                                    <th>%</th>
+                                    <th>Tinggi</th>
+                                    <th>Temp. Punca</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @php
+                                    $totalAll = $scoreData['total_attempted'];
+                                    $totalWrong = $scoreData['total_attempted'] - $scoreData['correct'];
+                                @endphp
+                                @foreach($answersByLine as $index => $line)
+                                @php
+                                    $interval = $line->line_marker;
+                                    $jumlah = $line->total;
+                                    $salah = $line->total - $line->correct;
+                                    $persenJumlah = ($jumlah / max($totalAll, 1)) * 100;
+                                    $persenSalah = ($salah / max($totalAll, 1)) * 100;
+                                    $persenBenar = ($line->correct / max($totalAll, 1)) * 100;
+                                    $penyimpangan = abs($persenJumlah - ($persenJumlah / 2));
+                                @endphp
+                                <tr class="text-center">
+                                    <td><strong>{{ $interval }}</strong></td>
+                                    <td>{{ number_format($jumlah) }}</td>
+                                    <td class="text-danger">{{ number_format($salah) }}</td>
+                                    <td>{{ number_format($persenSalah, 2) }}%</td>
+                                    <td class="text-success">{{ number_format($line->correct) }}</td>
+                                    <td>{{ number_format($persenBenar, 2) }}%</td>
+                                    <td>{{ number_format($penyimpangan, 2) }}</td>
+                                    <td>{{ number_format(($penyimpangan / max($persenJumlah, 1)) * 100, 2) }}%</td>
+                                    <td>{{ $line->correct > ($line->total / 2) ? '↑' : '↓' }}</td>
+                                    <td>{{ $line->line_marker }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr class="text-center fw-bold">
+                                    <td>Total</td>
+                                    <td>{{ number_format($totalAll) }}</td>
+                                    <td class="text-danger">{{ number_format($totalWrong) }}</td>
+                                    <td>{{ number_format(($totalWrong / max($totalAll, 1)) * 100, 2) }}%</td>
+                                    <td class="text-success">{{ number_format($scoreData['correct']) }}</td>
+                                    <td>{{ number_format($scoreData['accuracy'], 2) }}%</td>
+                                    <td colspan="4"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Analisis Psikologis</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-chart-line"></i> Kestabilan Kerja</h6>
+    <!-- KOREKTOR Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="fas fa-clipboard-list me-2 text-primary"></i> KOREKTOR
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        @foreach($answersByLine as $index => $line)
                         @php
-                        $lineTotals = $answersByLine->pluck('total')->toArray();
-                        $stability = count($lineTotals) > 0 ? (max($lineTotals) - min($lineTotals)) / array_sum($lineTotals) * 100 : 0;
+                            $persentase = ($line->total / max($totalAll, 1)) * 100;
                         @endphp
-                        <div class="progress mb-2">
-                            <div class="progress-bar bg-{{ $stability < 20 ? 'success' : ($stability < 40 ? 'warning' : 'danger') }}"
-                                style="width: {{ min(100, $stability) }}%">
-                                {{ number_format($stability, 1) }}%
+                        <div class="col-md-2 col-sm-3 col-4 mb-2">
+                            <div class="border rounded p-2 text-center">
+                                <strong>{{ $line->line_marker }}</strong>
+                                <div class="progress mt-1" style="height: 5px;">
+                                    <div class="progress-bar bg-primary" style="width: {{ $persentase }}%"></div>
+                                </div>
+                                <small>{{ number_format($persentase, 2) }}%</small>
                             </div>
                         </div>
-                        @if($stability < 20)
-                            <div class="alert alert-success">Stabil - Konsisten dalam pengerjaan
-                    </div>
-                    @elseif($stability < 40)
-                        <div class="alert alert-warning">Cukup stabil - Ada sedikit fluktuasi
-                </div>
-                @else
-                <div class="alert alert-danger">Tidak stabil - Performa sangat berfluktuasi</div>
-                @endif
-            </div>
-
-            <div class="col-md-6">
-                <h6><i class="fas fa-heartbeat"></i> Ketahanan (Daya Tahan)</h6>
-                @php
-                $firstHalf = array_slice($lineTotals, 0, floor(count($lineTotals)/2));
-                $secondHalf = array_slice($lineTotals, floor(count($lineTotals)/2));
-                $endurance = count($secondHalf) > 0 ? (array_sum($secondHalf) / count($secondHalf)) / (array_sum($firstHalf) / count($firstHalf)) * 100 : 100;
-                @endphp
-                <div class="progress mb-2">
-                    <div class="progress-bar bg-{{ $endurance > 90 ? 'success' : ($endurance > 70 ? 'warning' : 'danger') }}"
-                        style="width: {{ min(100, $endurance) }}%">
-                        {{ number_format($endurance, 1) }}%
+                        @endforeach
                     </div>
                 </div>
-                @if($endurance > 90)
-                <div class="alert alert-success">Daya tahan baik - Performa terjaga hingga akhir</div>
-                @elseif($endurance > 70)
-                <div class="alert alert-warning">Daya tahan cukup - Ada penurunan performa</div>
-                @else
-                <div class="alert alert-danger">Daya tahan rendah - Penurunan performa signifikan</div>
-                @endif
             </div>
-        </div>
-
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <h6><i class="fas fa-balance-scale"></i> Kecepatan vs Ketelitian</h6>
-                @if($scoreData['accuracy'] > 85 && $scoreData['total_attempted'] > 200)
-                <div class="alert alert-success">Kecepatan tinggi & Ketelitian tinggi - Performa optimal</div>
-                @elseif($scoreData['accuracy'] > 85 && $scoreData['total_attempted'] <= 200)
-                    <div class="alert alert-warning">Kecepatan rendah tapi teliti - Perlu peningkatan kecepatan
-            </div>
-            @elseif($scoreData['accuracy'] <= 85 && $scoreData['total_attempted']> 200)
-                <div class="alert alert-warning">Kecepatan tinggi tapi kurang teliti - Perlu peningkatan akurasi</div>
-                @else
-                <div class="alert alert-danger">Kecepatan rendah & kurang teliti - Perlu latihan intensif</div>
-                @endif
-        </div>
-
-        <div class="col-md-6">
-            <h6><i class="fas fa-graduation-cap"></i> Rekomendasi</h6>
-            @php
-            if ($scoreData['correct'] > 250 && $scoreData['accuracy'] > 85) {
-            $recommendation = 'Sangat baik. Kandidat memiliki konsentrasi tinggi, daya tahan baik, dan ketelitian yang sangat memadai.';
-            } elseif ($scoreData['correct'] > 200 && $scoreData['accuracy'] > 75) {
-            $recommendation = 'Baik. Kandidat memiliki kemampuan yang cukup untuk tugas yang membutuhkan konsentrasi dan ketelitian.';
-            } elseif ($scoreData['correct'] > 150 && $scoreData['accuracy'] > 70) {
-            $recommendation = 'Cukup. Perlu pendampingan dan latihan lebih lanjut untuk meningkatkan konsentrasi.';
-            } else {
-            $recommendation = 'Kurang. Kandidat perlu evaluasi lebih lanjut dan pelatihan intensif untuk meningkatkan kemampuan konsentrasi.';
-            }
-            @endphp
-            <div class="alert alert-info">{{ $recommendation }}</div>
         </div>
     </div>
 </div>
-</div>
-</div>
-</div>
 
-<div class="row mt-3">
-    <div class="col text-center">
-        <button class="btn btn-primary" onclick="window.print()">
-            <i class="fas fa-print"></i> Cetak Hasil
-        </button>
-        <a href="{{ route('tester.dashboard') }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Kembali
-        </a>
-    </div>
-</div>
-@endsection
+<style>
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .stat-card {
+        transition: transform 0.2s ease;
+        cursor: pointer;
+        border-radius: 1rem;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .table th, .table td {
+        vertical-align: middle;
+        font-size: 13px;
+    }
+    
+    .progress {
+        border-radius: 10px;
+    }
+
+    @media print {
+    .no-print, .btn, .navbar-top, .sidebar {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    
+    .table {
+        font-size: 10px;
+    }
+}
+</style>
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Accuracy Chart
-    new Chart(document.getElementById('accuracyChart'), {
-        type: 'doughnut',
+    // Data untuk grafik kerja
+    const lineLabels = @json($answersByLine->pluck('line_marker'));
+    const jumlahData = @json($answersByLine->pluck('total'));
+    const benarData = @json($answersByLine->pluck('correct'));
+    
+    // Hitung data untuk grafik
+    const totalMax = Math.max(...jumlahData);
+    
+    new Chart(document.getElementById('workCurveChart'), {
+        type: 'line',
         data: {
-            labels: ['Benar ({{ number_format($scoreData["correct"]) }})', 'Salah ({{ number_format($scoreData["total_attempted"] - $scoreData["correct"]) }})'],
-            datasets: [{
-                data: [{
-                    {
-                        $scoreData["correct"]
-                    }
-                }, {
-                    {
-                        $scoreData["total_attempted"] - $scoreData["correct"]
-                    }
-                }],
-                backgroundColor: ['#27ae60', '#e74c3c'],
-                borderWidth: 0
-            }]
+            labels: lineLabels,
+            datasets: [
+                {
+                    label: 'Jumlah Jawaban',
+                    data: jumlahData,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#3498db',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                },
+                {
+                    label: 'Jawaban Benar',
+                    data: benarData,
+                    borderColor: '#27ae60',
+                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#27ae60',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
                 legend: {
-                    position: 'bottom'
+                    position: 'top',
+                    labels: {
+                        font: { size: 12, weight: '500' },
+                        usePointStyle: true,
+                        boxWidth: 10
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            let value = context.raw;
+                            let total = context.dataset.label === 'Jumlah Jawaban' ? 
+                                {{ $scoreData['total_attempted'] }} : 
+                                {{ $scoreData['correct'] }};
+                            let percentage = (value / total * 100).toFixed(1);
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
                 }
-            }
-        }
-    });
-
-    // Line Chart
-    new Chart(document.getElementById('lineChart'), {
-        type: 'line',
-        data: {
-            labels: @json($answersByLine - > pluck('line_marker') - > map(function($item) {
-                return "Garis $item";
-            })),
-            datasets: [{
-                label: 'Jumlah Jawaban',
-                data: @json($answersByLine - > pluck('total')),
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.1
-            }, {
-                label: 'Jawaban Benar',
-                data: @json($answersByLine - > pluck('correct')),
-                borderColor: 'rgb(54, 162, 235)',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true
-        }
-    });
-
-    // Column Chart
-    new Chart(document.getElementById('columnChart'), {
-        type: 'bar',
-        data: {
-            labels: @json($answersByColumn - > pluck('column_number')),
-            datasets: [{
-                label: 'Jumlah Jawaban',
-                data: @json($answersByColumn - > pluck('total')),
-                backgroundColor: 'rgba(153, 102, 255, 0.5)',
-                borderColor: 'rgb(153, 102, 255)',
-                borderWidth: 1
-            }, {
-                label: 'Jawaban Benar',
-                data: @json($answersByColumn - > pluck('correct')),
-                backgroundColor: 'rgba(255, 159, 64, 0.5)',
-                borderColor: 'rgb(255, 159, 64)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
+            },
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Jumlah Jawaban',
+                        font: { size: 12, weight: 'bold' }
+                    },
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    max: {{ max($answersByLine->pluck('total')->toArray() + [100]) + 20 }}
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Interval Waktu (setiap 3 menit)',
+                        font: { size: 12, weight: 'bold' }
+                    },
+                    grid: { display: false }
                 }
             }
         }

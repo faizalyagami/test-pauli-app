@@ -623,57 +623,22 @@ class PauliTestController extends Controller
 
     public function result($sessionId)
     {
-        // Load session with eager loading
-        $session = TestSession::with([
-            'applicant',
-            'test',
-            'answers' => function ($query) {
-                $query->select('id', 'test_session_id', 'line_marker', 'column_number', 'is_correct');
-            }
-        ])->findOrFail($sessionId);
-
-        // Calculate score data
+        $session = TestSession::with(['applicant', 'test'])
+            ->findOrFail($sessionId);
+        
         $scoreData = $session->calculateScore();
-
-        // Optimize answers by line with single query
+        
         $answersByLine = TestAnswer::where('test_session_id', $sessionId)
             ->select('line_marker', DB::raw('COUNT(*) as total'), DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'))
             ->whereNotNull('line_marker')
             ->groupBy('line_marker')
             ->orderBy('line_marker')
             ->get();
-
-        // Optimize answers by column with single query
-        $answersByColumn = TestAnswer::where('test_session_id', $sessionId)
-            ->select('column_number', DB::raw('COUNT(*) as total'), DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'))
-            ->groupBy('column_number')
-            ->orderBy('column_number')
-            ->get();
-
-        // Optimize time series with single query
-        $timeSeries = TestAnswer::where('test_session_id', $sessionId)
-            ->select(DB::raw('FLOOR(time_taken_seconds / 60) as minute'), DB::raw('COUNT(*) as answers'), DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'))
-            ->whereNotNull('time_taken_seconds')
-            ->groupBy('minute')
-            ->orderBy('minute')
-            ->get();
-
-        // Get performance by column for heatmap
-        $performanceMatrix = TestAnswer::where('test_session_id', $sessionId)
-            ->select('column_number', 'row_number', 'is_correct')
-            ->orderBy('column_number')
-            ->orderBy('row_number')
-            ->get()
-            ->groupBy('column_number');
-
-        return view('pauli-test.result', compact(
-            'session',
-            'scoreData',
-            'answersByLine',
-            'answersByColumn',
-            'timeSeries',
-            'performanceMatrix'
-        ));
+        
+        // Hitung nilai tertinggi per interval
+        $maxLineScore = $answersByLine->max('correct');
+        
+        return view('pauli-test.result', compact('session', 'scoreData', 'answersByLine', 'maxLineScore'));
     }
 
     public function exportResults(Request $request)
@@ -1106,6 +1071,21 @@ class PauliTestController extends Controller
             return response()->json(['success' => true, 'message' => 'Cache cleared successfully']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Failed to clear cache']);
+        }
+    }
+
+    private function getKeterangan($accuracy)
+    {
+        if ($accuracy >= 85) {
+            return 'Sangat Baik';
+        } elseif ($accuracy >= 70) {
+            return 'Baik';
+        } elseif ($accuracy >= 55) {
+            return 'Cukup';
+        } elseif ($accuracy >= 40) {
+            return 'Kurang';
+        } else {
+            return 'Sangat Kurang';
         }
     }
 }
