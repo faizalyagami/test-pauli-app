@@ -75,21 +75,38 @@ class PauliTestController extends Controller
 
     public function storeTest(Request $request)
     {
+        // Debug: cek data yang masuk
+        \Log::info('Store Test Request:', $request->all());
+        
         $validated = $request->validate([
-            'test_code' => 'required|unique:tests',
-            'test_name' => 'required',
-            'description' => 'nullable',
+            'test_code' => 'required|unique:tests,test_code',
+            'test_name' => 'required|string|max:255',
+            'description' => 'nullable|string',
             'duration_minutes' => 'required|integer|min:1',
-            'total_questions' => 'required|integer|min:1',
+            // 'total_questions' => 'required|integer|min:1',
             'total_columns' => 'required|integer|min:1',
-            'rows_per_column' => 'required|integer|min:1',
-            'is_active' => 'boolean',
+            'rows_per_column' => 'required|integer|min:2',
+            'is_active' => 'nullable|boolean',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
-        $test = Test::create($validated);
-
-        return redirect()->route('tester.tests.edit', $test)->with('success', 'Test created successfully');
+        // Hitung total questions secara otomatis
+        $validated['total_questions'] = $validated['total_columns'] * ($validated['rows_per_column'] - 1);
+        
+        // Set is_active default false jika tidak ada di request
+        $validated['is_active'] = $request->has('is_active') ? true : false;
+        
+        try {
+            $test = Test::create($validated);
+            
+            return redirect()->route('tester.tests.edit', $test)
+                ->with('success', 'Test created successfully. Please generate questions.');
+                
+        } catch (\Exception $e) {
+            \Log::error('Error creating test: ' . $e->getMessage());
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Failed to create test: ' . $e->getMessage());
+        }
     }
 
     public function editTest(Test $test)
@@ -107,20 +124,22 @@ class PauliTestController extends Controller
     {
         $validated = $request->validate([
             'test_code' => 'required|unique:tests,test_code,' . $test->id,
-            'test_name' => 'required',
-            'description' => 'nullable',
+            'test_name' => 'required|string|max:255',
+            'description' => 'nullable|string',
             'duration_minutes' => 'required|integer|min:1',
-            'total_questions' => 'required|integer|min:1',
             'total_columns' => 'required|integer|min:1',
-            'rows_per_column' => 'required|integer|min:1',
-            'is_active' => 'boolean',
+            'rows_per_column' => 'required|integer|min:2',
+            'is_active' => 'nullable|boolean',
         ]);
         
+        // Hitung total questions otomatis
+        $validated['total_questions'] = $validated['total_columns'] * ($validated['rows_per_column'] - 1);
         $validated['is_active'] = $request->has('is_active');
         
         $test->update($validated);
         
-        return redirect()->route('tester.tests.edit', $test)->with('success', 'Test updated successfully');
+        return redirect()->route('tester.tests.edit', $test)
+            ->with('success', 'Test updated successfully');
     }
 
     public function destroyTest(Test $test)
@@ -155,26 +174,22 @@ class PauliTestController extends Controller
 
     public function generateQuestions(Test $test)
     {
-        try {
-            // Hapus semua soal yang ada
-            $test->pauliQuestions()->delete();
-
-            // Buat soal baru
-            for ($col = 1; $col <= $test->total_columns; $col++) {
-                for ($row = 1; $row <= $test->rows_per_column; $row++) {
-                    PauliQuestion::create([
-                        'test_id' => $test->id,
-                        'column_number' => $col,
-                        'row_number' => $row,
-                        'value' => rand(0, 9)
-                    ]);
-                }
+        $test->pauliQuestions()->delete();
+        
+        $totalQuestions = $test->total_columns * ($test->rows_per_column - 1);
+        
+        for ($col = 1; $col <= $test->total_columns; $col++) {
+            for ($row = 1; $row <= $test->rows_per_column; $row++) {
+                PauliQuestion::create([
+                    'test_id' => $test->id,
+                    'column_number' => $col,
+                    'row_number' => $row,
+                    'value' => rand(0, 9)
+                ]);
             }
-
-            return response()->json(['success' => true]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+        
+        return response()->json(['success' => true]);
     }
 
     public function updateQuestion(Request $request, PauliQuestion $question)
@@ -1008,6 +1023,18 @@ class PauliTestController extends Controller
         $user->update(['is_active' => $newStatus]);
 
         return response()->json(['success' => true]);
+    }
+
+    public function toggleTestStatus(Request $request, Test $test)
+    {
+        try {
+            $newStatus = $request->is_active == '1' || $request->is_active === true;
+            $test->update(['is_active' => $newStatus]);
+            
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 
     /**

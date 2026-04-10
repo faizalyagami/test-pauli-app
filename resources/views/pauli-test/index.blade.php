@@ -55,7 +55,7 @@
 
 <style>
     .test-container {
-        max-width: 95%;
+        max-width: 100%;
         margin: 20px auto;
         background: white;
         border-radius: 15px;
@@ -77,6 +77,9 @@
 
     .timer {
         color: #2c3e50;
+        font-size: 48px !important;
+        font-weight: bold;
+        font-family: monospace;
     }
 
     .timer.warning {
@@ -85,72 +88,72 @@
     }
 
     @keyframes pulse {
-        0% {
-            opacity: 1;
-        }
-
-        50% {
-            opacity: 0.7;
-        }
-
-        100% {
-            opacity: 1;
-        }
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+    
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 70vh;
+        position: relative;
     }
     
     .pauli-grid {
         font-family: 'Courier New', monospace;
         border-collapse: collapse;
-        width: max-content;
-        /* width: 100%;
-        margin: 0; */
+        font-size: 13px;
+        min-width: 100%;
     }
 
     .pauli-grid th {
         background: #f8f9fa;
-        padding: 10px;
+        padding: 10px 5px;
         border: 1px solid #ddd;
         position: sticky;
         top: 0;
         z-index: 10;
         font-weight: bold;
+        text-align: center;
+        min-width: 70px;
     }
 
     .pauli-grid td {
         border: 1px solid #ddd;
-        padding: 8px;
+        padding: 8px 4px;
         text-align: center;
         vertical-align: middle;
-        min-width: 90px;
-    }
-
-    .table-wrapper {
-        width: 100%;
-        overflow-x: auto;
     }
 
     .top-number {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
         color: #3498db;
-        margin-bottom: 5px;
     }
 
     .bottom-number {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
         color: #27ae60;
         margin-top: 5px;
     }
 
+    .answer-area {
+        margin: 5px 0;
+    }
+
     .answer-input {
-        width: 55px;
+        width: 50px;
         text-align: center;
         border: 2px solid #ddd;
         border-radius: 5px;
         padding: 5px;
-        font-size: 16px;
+        font-size: 14px;
         font-family: monospace;
+        display: block;
+        margin: 0 auto;
     }
 
     .answer-input:focus {
@@ -163,8 +166,15 @@
         cursor: not-allowed;
     }
 
-    .line-marker {
+    /* Garis penanda pada baris yang sedang dikerjakan */
+    .line-marker .answer-input {
         border-bottom: 3px solid red !important;
+        animation: blink 1s ease-in-out 3;
+    }
+    
+    @keyframes blink {
+        0%, 100% { border-bottom-color: red; }
+        50% { border-bottom-color: #ff6666; }
     }
 
     .skipped-column {
@@ -182,22 +192,40 @@
         font-size: 8px;
         padding: 2px 4px;
         border-radius: 3px;
+        z-index: 5;
+    }
+    
+    @media (max-width: 768px) {
+        .pauli-grid th {
+            font-size: 10px;
+            padding: 5px;
+            min-width: 50px;
+        }
+        
+        .answer-input {
+            width: 40px;
+            font-size: 12px;
+            padding: 3px;
+        }
+        
+        .top-number, .bottom-number {
+            font-size: 11px;
+        }
     }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function() {
-
         // Data dari server
         const testData = @json($testData);
         const sessionId = {{ $session->id }};
         const totalColumns = {{ $test->total_columns }};
         const rowsPerColumn = {{ $test->rows_per_column }};
         const totalDuration = {{ $test->duration_minutes * 60 }};
-
-        const testStatus = "{{ $session->status }}";
-        const startedAt = "{{ $session->started_at }}";
+        
+        // Jumlah baris jawaban = rowsPerColumn - 1 (karena penjumlahan antara baris 1+2, 2+3, dst)
+        const totalAnswerRows = rowsPerColumn - 1;
 
         // Variables
         let startTime = null;
@@ -208,266 +236,308 @@
         let lineInterval = null;
         let remainingSeconds = totalDuration;
         let isTestActive = false;
+        let gridRendered = false;
+        
+        // Baris yang sedang dikerjakan (dimulai dari baris 1)
+        let currentRow = 1;
+
+        console.log('Total Columns:', totalColumns);
+        console.log('Rows per Column:', rowsPerColumn);
+        console.log('Total Answer Rows:', totalAnswerRows);
 
         // ================= RENDER GRID =================
         function renderGrid() {
+            if (gridRendered) return;
+            
+            if (!testData || testData.length === 0) {
+                $('#pauliGridContainer').html('<div class="alert alert-danger">Data soal tidak tersedia. Silahkan generate questions terlebih dahulu.</div>');
+                return;
+            }
+            
             let html = '<table class="pauli-grid"><thead><tr>';
-
             for (let col = 1; col <= totalColumns; col++) {
                 html += `<th>Kolom ${col}</th>`;
             }
-
             html += '</tr></thead><tbody>';
 
-            for (let row = 1; row <= rowsPerColumn; row++) {
+            // BARIS PERTAMA: Menampilkan angka atas (row 1)
+            html += '<tr>';
+            for (let col = 1; col <= totalColumns; col++) {
+                let value = testData[col-1]?.[0]?.value || '?';
+                html += `<td class="top-row-cell">
+                    <div class="top-number">${value}</div>
+                </td>`;
+            }
+            html += '</tr>';
+
+            // BARIS JAWABAN: Untuk setiap baris jawaban (1 sampai totalAnswerRows)
+            for (let row = 1; row <= totalAnswerRows; row++) {
                 html += '<tr>';
-
                 for (let col = 1; col <= totalColumns; col++) {
-
-                    const cellData = testData[col - 1]?.[row - 1] || { value: '' };
-                    const value = cellData.value || '';
                     const isSkipped = skippedColumns.includes(col);
                     const answer = answers[`${col}_${row}`] || '';
-
+                    
+                    // Angka bawah adalah nilai dari baris ke-(row+1)
+                    let bottomValue = testData[col-1]?.[row]?.value || '?';
+                    
+                    // Cek apakah baris ini sedang dikerjakan
+                    const isCurrentRow = (row === currentRow && !isSkipped);
+                    
                     html += `<td class="${isSkipped ? 'skipped-column' : ''}" data-col="${col}" data-row="${row}">
-                        <div class="top-number">${value}</div>`;
-
-                    if (row < rowsPerColumn) {
-                        const nextValue = testData[col - 1]?.[row]?.value || '';
-
-                        html += `
+                        <div class="answer-area ${isCurrentRow ? 'line-marker' : ''}">
                             <input type="text" class="answer-input" data-col="${col}" data-row="${row}" 
-                            value="${answer}" maxlength="1" ${isSkipped ? 'disabled' : ''}>
-                            <div class="bottom-number">${nextValue}</div>
-                        `;
-                    }
-
-                    html += `</td>`;
+                                   value="${answer}" maxlength="1" ${isSkipped ? 'disabled' : ''}
+                                   placeholder="?">
+                            <div class="bottom-number">${bottomValue}</div>
+                        </div>
+                    </td>`;
                 }
-
                 html += '</tr>';
             }
-
+            
             html += '</tbody></table>';
-
+            
             $('#pauliGridContainer').html(html);
-
+            gridRendered = true;
             $('#skipColumnBtn').show();
+            
+            console.log('Grid rendered successfully');
+        }
+
+        // ================= UPDATE LINE MARKER =================
+        function updateLineMarker() {
+            // Hapus semua marker yang ada
+            $('.answer-area').removeClass('line-marker');
+            
+            // Tambahkan marker pada baris yang sedang dikerjakan
+            $(`.answer-area[data-row="${currentRow}"]`).addClass('line-marker');
         }
 
         // ================= SAVE ANSWER =================
         function saveAnswer(col, row, answer) {
-
             const key = `${col}_${row}`;
             answers[key] = answer;
-
+            
             const elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
-
-            $.post('/pauli-test/save-answer', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId,
-                column: col,
-                row: row,
-                answer: answer,
-                time_taken: elapsedSeconds,
-                line_marker: currentLine
+            
+            // Cek apakah semua kolom di baris ini sudah terisi
+            let allFilled = true;
+            for (let c = 1; c <= totalColumns; c++) {
+                if (!skippedColumns.includes(c) && !answers[`${c}_${currentRow}`]) {
+                    allFilled = false;
+                    break;
+                }
+            }
+            
+            // Jika semua kolom di baris ini sudah terisi, pindah ke baris berikutnya
+            if (allFilled && currentRow < totalAnswerRows) {
+                currentRow++;
+                updateLineMarker();
+            }
+            
+            $.ajax({
+                url: '/pauli-test/save-answer',
+                method: 'POST',
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    session_id: sessionId,
+                    column: col,
+                    row: row,
+                    answer: answer,
+                    time_taken: elapsedSeconds,
+                    line_marker: currentLine
+                },
+                error: function(xhr) {
+                    console.error('Error saving answer:', xhr);
+                }
             });
         }
 
         // ================= INPUT HANDLER =================
         $(document).on('input', '.answer-input', function() {
-
             let value = $(this).val();
-
             if (value && !isNaN(value)) {
-
                 let lastDigit = value.toString().slice(-1);
                 $(this).val(lastDigit);
-
                 let col = $(this).data('col');
                 let row = $(this).data('row');
-
                 saveAnswer(col, row, lastDigit);
             }
         });
 
         // ================= TIMER =================
         function updateTimer() {
-
             if (!isTestActive) return;
-
+            
             const minutes = Math.floor(remainingSeconds / 60);
             const seconds = remainingSeconds % 60;
-
-            $('#timer').text(
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-            );
-
+            const timerElement = $('#timer');
+            timerElement.text(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+            
             if (remainingSeconds <= 60) {
-                $('#timer').addClass('warning');
+                timerElement.addClass('warning');
             }
-
+            
             if (remainingSeconds <= 0) {
                 endTest();
             }
-
+            
             remainingSeconds--;
         }
 
         function startTimer() {
-
             if (timerInterval) clearInterval(timerInterval);
-
             timerInterval = setInterval(updateTimer, 1000);
             updateTimer();
         }
 
-        // ================= LINE MARKER =================
+        // ================= LINE MARKER SETIAP 3 MENIT =================
         function markLine() {
-
             if (!isTestActive) return;
-
+            
             currentLine++;
             $('#lineCount').text(currentLine);
-
-            const rowToMark = Math.ceil(currentLine / (totalColumns / 5));
-
-            if (rowToMark <= rowsPerColumn) {
-
-                $(`.pauli-grid tbody tr:nth-child(${rowToMark}) td`)
-                    .addClass('line-marker');
-
-                setTimeout(() => {
-                    $(`.pauli-grid tbody tr:nth-child(${rowToMark}) td`)
-                        .removeClass('line-marker');
-                }, 3000);
-            }
-
+            
+            // Efek visual garis pada baris yang sedang dikerjakan
+            const $currentRowCells = $(`.answer-area[data-row="${currentRow}"]`);
+            $currentRowCells.addClass('line-marker');
+            
+            // Hilangkan efek setelah 2 detik
+            setTimeout(() => {
+                if (isTestActive) {
+                    $currentRowCells.removeClass('line-marker');
+                    // Kembalikan marker ke baris yang sedang dikerjakan
+                    $(`.answer-area[data-row="${currentRow}"]`).addClass('line-marker');
+                }
+            }, 2000);
+            
             const elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
-
-            $.post('/pauli-test/mark-line', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId,
-                line_number: currentLine,
-                time_mark: elapsedSeconds
+            
+            $.ajax({
+                url: '/pauli-test/mark-line',
+                method: 'POST',
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    session_id: sessionId,
+                    line_number: currentLine,
+                    time_mark: elapsedSeconds
+                }
             });
+            
+            if (currentLine >= 20) {
+                clearInterval(lineInterval);
+            }
         }
 
         function startLineMarker() {
             if (lineInterval) clearInterval(lineInterval);
-            lineInterval = setInterval(markLine, 180000);
+            lineInterval = setInterval(markLine, 180000); // 3 menit = 180000 ms
             setTimeout(markLine, 100);
         }
 
-        // ================= SKIP =================
+        // ================= SKIP COLUMN =================
         function skipColumn() {
-
-            const col = prompt(`Kolom (1-${totalColumns})`);
-
+            const col = prompt(`Masukkan nomor kolom yang akan dilewati (1-${totalColumns}):`);
             if (!col || isNaN(col)) return;
-
+            
             const colNumber = parseInt(col);
-
             if (colNumber < 1 || colNumber > totalColumns || skippedColumns.includes(colNumber)) {
-                alert('Tidak valid');
+                alert('Kolom tidak valid atau sudah dilewati!');
                 return;
             }
-
+            
             skippedColumns.push(colNumber);
-
             $(`.answer-input[data-col="${colNumber}"]`).prop('disabled', true);
             $(`td[data-col="${colNumber}"]`).addClass('skipped-column');
-
             $('#skippedCount').text(skippedColumns.length);
-
-            $.post('/pauli-test/skip-column', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId,
-                column: colNumber
-            });
-        }
-
-        // ================= END =================
-        function endTest() {
-
-            if (!isTestActive) return;
-
-            isTestActive = false;
-
-            clearInterval(timerInterval);
-            clearInterval(lineInterval);
-
-            $.post('/pauli-test/end', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId
-            }).done(() => {
-                window.location.href = '/pauli-test/result/' + sessionId;
-            });
-        }
-
-        // ================= START =================
-        function startTest(resume = false) {
-
-            $('#testBody').show();
-            renderGrid();
-
-            // hitung waktu jika resume
-            if (resume && startedAt) {
-                const start = new Date(startedAt);
-                const now = new Date();
-                const elapsed = Math.floor((now - start) / 1000);
-                remainingSeconds = totalDuration - elapsed;
-
-                if (remainingSeconds <= 0) {
-                    endTest();
-                    return;
+            
+            // Cek apakah semua kolom di baris ini sudah diisi atau dilewati
+            let allCompleted = true;
+            for (let c = 1; c <= totalColumns; c++) {
+                if (!skippedColumns.includes(c) && !answers[`${c}_${currentRow}`]) {
+                    allCompleted = false;
+                    break;
                 }
-
-                startTime = start;
-            } else {
-                startTime = new Date();
-
-                $.post('/pauli-test/start', {
-                    _token: $('meta[name="csrf-token"]').attr('content'),
-                    session_id: sessionId
-                });
             }
+            
+            if (allCompleted && currentRow < totalAnswerRows) {
+                currentRow++;
+                updateLineMarker();
+            }
+            
+            $.ajax({
+                url: '/pauli-test/skip-column',
+                method: 'POST',
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    session_id: sessionId,
+                    column: colNumber
+                }
+            });
+        }
 
+        // ================= END TEST =================
+        function endTest() {
+            if (!isTestActive) return;
+            
+            isTestActive = false;
+            if (timerInterval) clearInterval(timerInterval);
+            if (lineInterval) clearInterval(lineInterval);
+            
+            $.ajax({
+                url: '/pauli-test/end',
+                method: 'POST',
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    session_id: sessionId,
+                    end_time: new Date().toISOString()
+                },
+                success: function() {
+                    window.location.href = '/pauli-test/result/' + sessionId;
+                },
+                error: function() {
+                    alert('Terjadi kesalahan saat menyelesaikan tes');
+                }
+            });
+        }
+
+        // ================= PREVENT COPY PASTE =================
+        function preventCopyPaste() {
+            $(document).on('copy paste cut drag drop', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            $(document).on('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+        }
+
+        // ================= START TEST =================
+        function startTest() {
+            $('#testBody').show();
+            startTime = new Date();
+            renderGrid();
             startTimer();
             startLineMarker();
-
+            preventCopyPaste();
             isTestActive = true;
-
-            $('#skipColumnBtn').off().on('click', skipColumn);
+            
+            // Set initial line marker
+            updateLineMarker();
+            
+            $('#skipColumnBtn').off('click').on('click', skipColumn);
         }
 
-        // ================= AUTO RESUME =================
-        if (testStatus === 'started') {
-            $('#instructionModal').hide();
-            startTest(true);
-        } 
-        else if (testStatus === 'finished') {
-            window.location.href = '/pauli-test/result/' + sessionId;
-        } 
-        else {
-            $('#instructionModal').show();
-        }
-
-        // ================= START BUTTON =================
-        $('#startTestBtn').on('click', function() {
+        // ================= EVENT START BUTTON =================
+        $(document).on('click', '#startTestBtn', function() {
             $('#instructionModal').fadeOut(300, function() {
-                startTest(false);
+                startTest();
             });
         });
-
-        // ================= WARNING REFRESH =================
-        window.addEventListener('beforeunload', function (e) {
-            if (isTestActive) {
-                e.preventDefault();
-                e.returnValue = '';
-            }
-        });
-
+        
+        // Tampilkan modal instruksi saat halaman dimuat
+        $('#instructionModal').show();
     });
 </script>
 @endsection

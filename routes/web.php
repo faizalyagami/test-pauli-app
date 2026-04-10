@@ -79,6 +79,7 @@ Route::middleware(['auth', 'role:admin,tester'])->prefix('tester')->name('tester
     Route::put('/tests/{test}', [PauliTestController::class, 'updateTest'])->name('tests.update');
     Route::delete('/tests/{test}', [PauliTestController::class, 'destroyTest'])->name('tests.destroy');
     Route::post('/tests/{test}/generate-questions', [PauliTestController::class, 'generateQuestions'])->name('tests.generate');
+    Route::post('/tests/{test}/toggle-status', [PauliTestController::class, 'toggleTestStatus'])->name('tests.toggle-status');
     Route::put('/questions/{question}', [PauliTestController::class, 'updateQuestion'])->name('questions.update');
 
     // Applicant Management
