@@ -43,16 +43,21 @@ class TestSession extends Model
 
     public function calculateScore()
     {
-        $correctAnswers = $this->answers()->where('is_correct', true)->count();
-        $totalAttempt = $this->answers()->count();
-
+        $answers = $this->answers();
+        
+        $correctAnswers = $answers->where('is_correct', true)->count();
+        $totalAttempted = $answers->count();
+        $revisedAnswers = $answers->where('is_revised', true)->count();
+        
         $this->score = $correctAnswers;
         $this->save();
-
+        
         return [
             'correct' => $correctAnswers,
-            'total_attempted' => $totalAttempt,
-            'accuracy' => $totalAttempt > 0 ? ($correctAnswers / $totalAttempt) * 100 : 0
+            'total_attempted' => $totalAttempted,
+            'revised' => $revisedAnswers,
+            'wrong' => $totalAttempted - $correctAnswers,
+            'accuracy' => $totalAttempted > 0 ? ($correctAnswers / $totalAttempted) * 100 : 0
         ];
     }
 

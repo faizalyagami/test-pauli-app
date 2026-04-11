@@ -557,34 +557,64 @@ class PauliTestController extends Controller
     public function saveAnswer(Request $request)
     {
         $validated = $request->validate([
-            'session_id' => 'required|exists:test_sessions_id',
+            'session_id' => 'required|exists:test_sessions,id',
             'column' => 'required|integer',
             'row' => 'required|integer',
-            'answer' => 'required|string|max:1',
+            'answer' => 'nullable|string|max:1', // 🔥 boleh kosong
             'time_taken' => 'nullable|integer',
             'line_marker' => 'nullable|integer',
         ]);
 
         $session = TestSession::findOrFail($validated['session_id']);
 
-        // Get question in single query
-        $questions = PauliQuestion::where('test_id', $session->test_id)
+        // Ambil soal sekarang & bawahnya
+        $currentQuestion = PauliQuestion::where('test_id', $session->test_id)
             ->where('column_number', $validated['column'])
-            ->whereIn('row_number', [$validated['row'], $validated['row'] + 1])
-            ->get()
-            ->keyBy('row_number');
+            ->where('row_number', $validated['row'])
+            ->first();
 
-        $currentQuestion = $questions->get($validated['row']);
-        $nextQuestion = $questions->get($validated['row'] + 1);
+        $nextQuestion = PauliQuestion::where('test_id', $session->test_id)
+            ->where('column_number', $validated['column'])
+            ->where('row_number', $validated['row'] + 1)
+            ->first();
 
-        if ($currentQuestion && $nextQuestion) {
+        $correctValue = null;
+        $isCorrect = false;
+
+        if ($currentQuestion && $nextQuestion && $validated['answer'] !== null && $validated['answer'] !== '') {
             $correctValue = ($currentQuestion->value + $nextQuestion->value) % 10;
             $isCorrect = (int)$validated['answer'] === $correctValue;
-        } else {
-            $correctValue = null;
-            $isCorrect = false;
         }
 
+        // 🔍 CEK DATA SEBELUMNYA
+        $existingAnswer = TestAnswer::where('test_session_id', $validated['session_id'])
+            ->where('column_number', $validated['column'])
+            ->where('row_number', $validated['row'])
+            ->first();
+        
+        $isRevised = false;
+        $revisedCount = 0;
+
+        // 🔥 HITUNG REVISI
+        if ($existingAnswer) {
+            $isRevised = true;
+            $revisedCount = $existingAnswer->revised_count + 1;
+        } else {
+            $isRevised = false;
+            $revisedCount = 0;
+        }
+
+        // 🧠 LOG DEBUG
+        \Log::info('Save Answer', [
+            'col' => $validated['column'],
+            'row' => $validated['row'],
+            'answer' => $validated['answer'],
+            'old_answer' => $existingAnswer->answer_value ?? null,
+            'is_revised' => $isRevised,
+            'revised_count' => $revisedCount
+        ]);
+
+        // 💾 SIMPAN (UPDATE ATAU CREATE)
         TestAnswer::updateOrCreate(
             [
                 'test_session_id' => $validated['session_id'],
@@ -592,16 +622,24 @@ class PauliTestController extends Controller
                 'row_number' => $validated['row'],
             ],
             [
-                'question_id' => $currentQuestion ? $currentQuestion->id : null,
+                'question_id' => $currentQuestion?->id,
                 'answer_value' => $validated['answer'],
                 'correct_value' => $correctValue,
                 'is_correct' => $isCorrect,
+                'is_revised' => $isRevised,
+                'revised_count' => $revisedCount,
                 'time_taken_seconds' => $validated['time_taken'],
                 'line_marker' => $validated['line_marker'],
             ]
         );
-        return response()->json(['success' => true]);
+
+        return response()->json([
+            'success' => true,
+            'is_revised' => $isRevised,
+            'revised_count' => $revisedCount
+        ]);
     }
+
     public function batchSaveAnswers(Request $request)
     {
         $validated = $request->validate([
@@ -652,24 +690,227 @@ class PauliTestController extends Controller
         return response()->json(['success' => true, 'count' => count($answers)]);
     }
 
+    public function endTest(Request $request)
+    {
+        $validated = $request->validate([
+            'session_id' => 'required|exists:test_sessions,id',
+            'end_time' => 'nullable|date'
+        ]);
+        
+        $session = TestSession::findOrFail($validated['session_id']);
+        
+        // Cek apakah sudah pernah diakhiri
+        if ($session->status === 'completed') {
+            return response()->json(['success' => true, 'message' => 'Test already completed']);
+        }
+        
+        // Update session
+        $session->update([
+            'end_time' => $request->end_time ? now() : now(),
+            'status' => 'completed'
+        ]);
+        
+        // Hitung skor
+        $scoreData = $session->calculateScore();
+        
+        return response()->json([
+            'success' => true,
+            'score' => $scoreData
+        ]);
+    }
+
     public function result($sessionId)
     {
         $session = TestSession::with(['applicant', 'test'])
-            ->findOrFail($sessionId);
+        ->findOrFail($sessionId);
+    
+        // Ambil semua jawaban
+        $answers = TestAnswer::where('test_session_id', $sessionId)->get();
         
-        $scoreData = $session->calculateScore();
+        // ==================== PERHITUNGAN STATISTIK ====================
         
+        // 1. Hitung jumlah jawaban yang diisi (total input)
+        $totalAnswered = $answers->count();
+        
+        // 2. Hitung jumlah jawaban benar
+        $correctCount = $answers->where('is_correct', true)->count();
+        
+        // 3. Hitung jumlah jawaban salah
+        $wrongCount = $answers->where('is_correct', false)->count();
+        
+        // 4. Hitung jumlah jawaban yang dikoreksi (diubah/ditimpa)
+        $revisedCount = $answers->sum('revised_count');
+        
+        // 5. Hitung jumlah kolom yang terpenuhi (minimal 1 jawaban per kolom)
+        $columnsWithAnswers = $answers->groupBy('column_number')->count();
+        $totalColumns = $session->test->total_columns;
+        $skippedColumns = $session->skipped_columns;
+        $columnsFulfilled = $columnsWithAnswers;
+        
+        // 6. Hitung akurasi
+        $accuracy = $totalAnswered > 0 ? ($correctCount / $totalAnswered) * 100 : 0;
+        
+        // 7. Hitung rata-rata waktu per jawaban
+        $avgTimePerAnswer = $answers->avg('time_taken_seconds') ?? 0;
+        
+        // 8. Hitung performa per baris (interval)
         $answersByLine = TestAnswer::where('test_session_id', $sessionId)
-            ->select('line_marker', DB::raw('COUNT(*) as total'), DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'))
+            ->select('line_marker', 
+                DB::raw('COUNT(*) as total'),
+                DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'),
+                DB::raw('SUM(CASE WHEN is_revised THEN 1 ELSE 0 END) as revised'))
             ->whereNotNull('line_marker')
             ->groupBy('line_marker')
             ->orderBy('line_marker')
             ->get();
         
-        // Hitung nilai tertinggi per interval
-        $maxLineScore = $answersByLine->max('correct');
+        // 9. Hitung performa per kolom
+        $answersByColumn = TestAnswer::where('test_session_id', $sessionId)
+            ->select('column_number', 
+                DB::raw('COUNT(*) as total'),
+                DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'))
+            ->groupBy('column_number')
+            ->orderBy('column_number')
+            ->get();
         
-        return view('pauli-test.result', compact('session', 'scoreData', 'answersByLine', 'maxLineScore'));
+        // 10. Hitung kurva kerja (jumlah jawaban per menit)
+        $workCurve = TestAnswer::where('test_session_id', $sessionId)
+            ->select(DB::raw('FLOOR(time_taken_seconds / 60) as minute'), 
+                DB::raw('COUNT(*) as count'))
+            ->groupBy('minute')
+            ->orderBy('minute')
+            ->get();
+        
+        // 11. Hitung konsistensi (standar deviasi dari performa per interval)
+        $performanceValues = $answersByLine->pluck('total')->toArray();
+        $consistency = count($performanceValues) > 1 ? $this->calculateStdDev($performanceValues) : 0;
+        
+        // 12. Hitung daya tahan (performa akhir vs awal)
+        $firstHalf = array_slice($performanceValues, 0, floor(count($performanceValues)/2));
+        $secondHalf = array_slice($performanceValues, floor(count($performanceValues)/2));
+        $endurance = (count($secondHalf) > 0 && count($firstHalf) > 0) 
+            ? (array_sum($secondHalf)/count($secondHalf)) / (array_sum($firstHalf)/count($firstHalf)) * 100 
+            : 100;
+        
+        // 13. Hitung skor akhir
+        $finalScore = $correctCount;
+        $session->update(['score' => $finalScore]);
+        
+        // Kumpulkan semua statistik
+        $statistics = [
+            'total_answered' => $totalAnswered,
+            'correct_count' => $correctCount,
+            'wrong_count' => $wrongCount,
+            'revised_count' => $revisedCount,
+            'columns_fulfilled' => $columnsFulfilled,
+            'total_columns' => $totalColumns,
+            'skipped_columns' => $skippedColumns,
+            'accuracy' => round($accuracy, 2),
+            'avg_time_per_answer' => round($avgTimePerAnswer, 2),
+            'consistency' => round($consistency, 2),
+            'endurance' => round($endurance, 2),
+            'final_score' => $finalScore,
+        ];
+        
+        // Analisis psikologis
+        $analysis = $this->getPsychologicalAnalysis($statistics);
+        
+        return view('pauli-test.result', compact(
+            'session', 
+            'statistics', 
+            'answersByLine', 
+            'answersByColumn', 
+            'workCurve',
+            'analysis'
+        ));
+    }
+
+    private function calculateStdDev($array)
+    {
+        $n = count($array);
+        if ($n === 0) return 0;
+        
+        $mean = array_sum($array) / $n;
+        $variance = array_sum(array_map(function($x) use ($mean) {
+            return pow($x - $mean, 2);
+        }, $array)) / $n;
+        
+        return sqrt($variance);
+    }
+
+    /**
+     * Analisis psikologis berdasarkan statistik
+     */
+    private function getPsychologicalAnalysis($stats)
+    {
+        $analysis = [];
+        
+        // Analisis Akurasi
+        if ($stats['accuracy'] >= 85) {
+            $analysis['accuracy'] = 'Sangat Baik - Ketelitian sangat tinggi';
+        } elseif ($stats['accuracy'] >= 70) {
+            $analysis['accuracy'] = 'Baik - Ketelitian cukup baik';
+        } elseif ($stats['accuracy'] >= 55) {
+            $analysis['accuracy'] = 'Cukup - Perlu peningkatan ketelitian';
+        } else {
+            $analysis['accuracy'] = 'Kurang - Perlu latihan ketelitian';
+        }
+        
+        // Analisis Konsistensi
+        if ($stats['consistency'] < 10) {
+            $analysis['consistency'] = 'Sangat Stabil - Performa sangat konsisten';
+        } elseif ($stats['consistency'] < 20) {
+            $analysis['consistency'] = 'Stabil - Performa cukup konsisten';
+        } elseif ($stats['consistency'] < 35) {
+            $analysis['consistency'] = 'Cukup Stabil - Ada sedikit fluktuasi';
+        } else {
+            $analysis['consistency'] = 'Tidak Stabil - Performa sangat berfluktuasi';
+        }
+        
+        // Analisis Daya Tahan
+        if ($stats['endurance'] >= 90) {
+            $analysis['endurance'] = 'Sangat Baik - Daya tahan sangat baik';
+        } elseif ($stats['endurance'] >= 75) {
+            $analysis['endurance'] = 'Baik - Daya tahan baik';
+        } elseif ($stats['endurance'] >= 60) {
+            $analysis['endurance'] = 'Cukup - Daya tahan cukup';
+        } else {
+            $analysis['endurance'] = 'Kurang - Mudah lelah, perlu peningkatan daya tahan';
+        }
+        
+        // Analisis Kecepatan
+        if ($stats['avg_time_per_answer'] < 3) {
+            $analysis['speed'] = 'Sangat Cepat - Bekerja sangat cepat';
+        } elseif ($stats['avg_time_per_answer'] < 5) {
+            $analysis['speed'] = 'Cepat - Bekerja cepat';
+        } elseif ($stats['avg_time_per_answer'] < 8) {
+            $analysis['speed'] = 'Sedang - Kecepatan kerja normal';
+        } else {
+            $analysis['speed'] = 'Lambat - Perlu peningkatan kecepatan';
+        }
+        
+        // Rekomendasi
+        $recommendations = [];
+        if ($stats['accuracy'] < 70) {
+            $recommendations[] = 'Tingkatkan ketelitian dengan latihan soal-soal hitungan';
+        }
+        if ($stats['endurance'] < 75) {
+            $recommendations[] = 'Latih daya tahan dengan mengerjakan soal dalam waktu lebih lama';
+        }
+        if ($stats['avg_time_per_answer'] > 6) {
+            $recommendations[] = 'Percepat waktu pengerjaan dengan latihan rutin';
+        }
+        if ($stats['consistency'] > 25) {
+            $recommendations[] = 'Jaga konsistensi performa dengan manajemen waktu yang baik';
+        }
+        
+        if (empty($recommendations)) {
+            $recommendations[] = 'Pertahankan performa yang sudah baik dan terus tingkatkan';
+        }
+        
+        $analysis['recommendations'] = $recommendations;
+        
+        return $analysis;
     }
 
     public function exportResults(Request $request)

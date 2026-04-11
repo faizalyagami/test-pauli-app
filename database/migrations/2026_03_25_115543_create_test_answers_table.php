@@ -20,6 +20,8 @@ return new class extends Migration
             $table->integer('answer_value');
             $table->integer('correct_value')->nullable();
             $table->boolean('is_correct')->default(false);
+            $table->boolean('is_revised')->default(false);
+            $table->integer('revised_count')->default(0);
             $table->integer('time_taken_seconds')->nullable();
             $table->integer('line_marker')->nullable();
             $table->timestamps();

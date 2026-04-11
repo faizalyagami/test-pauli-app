@@ -227,6 +227,15 @@
             font-size: 11px;
         }
     }
+    .answer-input.revised {
+    background-color: #fff3cd !important;
+    animation: revisedBlink 0.5s ease-in-out 2;
+    }
+
+    @keyframes revisedBlink {
+        0%, 100% { background-color: #fff3cd; }
+        50% { background-color: #ffeaa7; }
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -253,9 +262,18 @@
         var isTestActive = false;
         var gridRendered = false;
         var currentRow = 1;
+        var isEnding = false;
 
         // 🔥 TRACK INPUT TERAKHIR
         var lastAnswered = null;
+
+        window.addEventListener('beforeunload', function(e) {
+            if (isTestActive) {
+                e.preventDefault();
+                e.returnValue = 'Tes masih berjalan. Jika Anda keluar, jawaban tidak akan tersimpan.';
+                return e.returnValue;
+            }
+        });
 
         // ================= RENDER GRID =================
         function renderGrid() {
@@ -296,15 +314,62 @@
             document.getElementById('skipColumnBtn').style.display = 'inline-block';
         }
 
+        // ================= FUNGSI BLINK MERAH =================
+        function blinkRed(element) {
+            if (!element) return;
+            
+            // Simpan warna asli
+            var originalBorder = element.style.borderColor;
+            var originalBg = element.style.backgroundColor;
+            
+            // Ubah jadi merah
+            element.style.borderColor = '#dc3545';
+            element.style.borderWidth = '3px';
+            element.style.backgroundColor = '#ffe0e0';
+            element.style.transition = 'all 0.1s ease';
+            
+            // Blink 3 kali
+            var blinkCount = 0;
+            var blinkInterval = setInterval(function() {
+                if (blinkCount >= 3) {
+                    clearInterval(blinkInterval);
+                    // Kembalikan ke warna asli
+                    element.style.borderColor = originalBorder;
+                    element.style.borderWidth = '2px';
+                    element.style.backgroundColor = originalBg;
+                } else {
+                    if (blinkCount % 2 === 0) {
+                        element.style.borderColor = '#ff6b6b';
+                        element.style.backgroundColor = '#fff0f0';
+                    } else {
+                        element.style.borderColor = '#dc3545';
+                        element.style.backgroundColor = '#ffe0e0';
+                    }
+                    blinkCount++;
+                }
+            }, 200);
+        }
+        
         // ================= SAVE ANSWER =================
         function saveAnswer(col, row, answer) {
-            answers[col + '_' + row] = answer;
-
-            // 🔥 SIMPAN POSISI TERAKHIR
+            var key = col + '_' + row;
+            var isRevised = false;
+            
+            // CEK APAKAH JAWABAN SUDAH PERNAH DIISI SEBELUMNYA
+            if (answers[key] !== undefined && answers[key] !== '') {
+                isRevised = true; // INI ADALAH JAWABAN REVISI (DITIMPA)
+                console.log('JAWABAN DIREVISI - Kolom:', col, 'Baris:', row, 'Lama:', answers[key], 'Baru:', answer);
+            }
+            
+            // SIMPAN JAWABAN KE VARIABEL LOKAL
+            answers[key] = answer;
+            
+            // SIMPAN POSISI TERAKHIR UNTUK GARIS
             lastAnswered = { col: col, row: row };
-
+            
             var elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
-
+            
+            // KIRIM KE SERVER DENGAN STATUS REVISI
             fetch('/pauli-test/save-answer', {
                 method: 'POST',
                 headers: {
@@ -317,29 +382,112 @@
                     row: row,
                     answer: answer,
                     time_taken: elapsedSeconds,
-                    line_marker: currentLine
+                    line_marker: currentLine,
+                    is_revised: isRevised  // 🔥 KIRIM STATUS REVISI
                 })
             });
-        }
-
-        // ================= INPUT =================
-        document.addEventListener('input', function(e) {
-            if (e.target.classList.contains('answer-input')) {
-                var input = e.target;
-                var value = input.value;
-
-                if (value && !isNaN(value)) {
-                    var lastDigit = value.toString().slice(-1);
-                    input.value = lastDigit;
-
-                    var col = parseInt(input.dataset.col);
-                    var row = parseInt(input.dataset.row);
-
-                    saveAnswer(col, row, lastDigit);
+            
+            // BERI FEEDBACK VISUAL UNTUK JAWABAN YANG DIREVISI
+            if (isRevised) {
+                var inputElement = document.querySelector('.answer-input[data-col="' + col + '"][data-row="' + row + '"]');
+                if (inputElement) {
+                    // TAMBAHKAN EFEK KEDIP KUNING UNTUK MENANDAI REVISI
+                    inputElement.style.backgroundColor = '#fff3cd';
+                    inputElement.style.transition = 'background-color 0.3s';
+                    setTimeout(function() {
+                        inputElement.style.backgroundColor = '';
+                    }, 500);
                 }
             }
-        });
+        }
 
+        // // ================= INPUT =================
+        // document.addEventListener('input', function(e) {
+        //     if (e.target.classList.contains('answer-input')) {
+        //         var input = e.target;
+        //         var value = input.value;
+
+        //         if (value && !isNaN(value)) {
+        //             var lastDigit = value.toString().slice(-1);
+        //             input.value = lastDigit;
+
+        //             var col = parseInt(input.dataset.col);
+        //             var row = parseInt(input.dataset.row);
+
+        //             saveAnswer(col, row, lastDigit);
+        //         }
+        //     }
+        // });
+
+        // ================= INPUT HANDLER DENGAN DETEKSI PERUBAHAN =================
+            document.addEventListener('input', function(e) {
+                if (e.target.classList.contains('answer-input')) {
+                    var input = e.target;
+                    var value = input.value;
+                    var col = parseInt(input.dataset.col);
+                    var row = parseInt(input.dataset.row);
+                    var oldValue = answers[col + '_' + row] || '';
+                    
+                    if (value && !isNaN(value)) {
+                        var lastDigit = value.toString().slice(-1);
+                        input.value = lastDigit;
+                        
+                        // CEK APAKAH NILAI BERUBAH (REVISI)
+                        if (oldValue !== '' && oldValue !== lastDigit) {
+                            // INI ADALAH REVISI
+                            saveAnswerWithRevision(col, row, lastDigit, true);
+                            
+                            // TAMBAHKAN CLASS REVISI SEMENTARA
+                            input.classList.add('revised');
+                            setTimeout(function() {
+                                input.classList.remove('revised');
+                            }, 1000);
+                        } else {
+                            // JAWABAN PERTAMA KALI
+                            saveAnswerWithRevision(col, row, lastDigit, false);
+                        }
+                    } else if (value === '') {
+                        // JIKA INPUT DIKOSONGKAN, TETAP KIRIM SEBAGAI REVISI (MENGHAPUS JAWABAN)
+                        saveAnswerWithRevision(col, row, '', oldValue !== '');
+                    }
+                }
+            });
+
+        // FUNGSI SAVE ANSWER DENGAN PARAMETER REVISI
+        function saveAnswerWithRevision(col, row, answer, isRevised) {
+            var key = col + '_' + row;
+            var oldAnswer = answers[key] || '';
+            
+            // SIMPAN KE VARIABEL LOKAL
+            answers[key] = answer;
+            lastAnswered = { col: col, row: row };
+            
+            var elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
+            
+            // KIRIM KE SERVER
+            fetch('/pauli-test/save-answer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    column: col,
+                    row: row,
+                    answer: answer,
+                    time_taken: elapsedSeconds,
+                    line_marker: currentLine,
+                    is_revised: isRevised,
+                    old_answer: oldAnswer  // KIRIM JAWABAN LAMA UNTUK REFERENSI
+                })
+            });
+            
+            // LOG UNTUK DEBUG
+            if (isRevised) {
+                console.log('📝 REVISI DETEKSI - Kolom:', col, 'Baris:', row, 'Lama:', oldAnswer, 'Baru:', answer);
+            }
+        }
         // ================= TIMER =================
         function updateTimer() {
             if (!isTestActive) return;
@@ -398,10 +546,20 @@
 
         // ================= END =================
         function endTest() {
+            if (!isTestActive || isEnding) return;
+            
+            isEnding = true;
             isTestActive = false;
-            clearInterval(timerInterval);
-            clearInterval(lineInterval);
-
+            
+            // Nonaktifkan semua input
+            var allInputs = document.querySelectorAll('.answer-input');
+            allInputs.forEach(function(input) {
+                input.disabled = true;
+            });
+            
+            if (timerInterval) clearInterval(timerInterval);
+            if (lineInterval) clearInterval(lineInterval);
+            
             fetch('/pauli-test/end', {
                 method: 'POST',
                 headers: {
@@ -409,13 +567,47 @@
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 },
                 body: JSON.stringify({
-                    session_id: sessionId
+                    session_id: sessionId,
+                    end_time: new Date().toISOString()
                 })
-            }).then(() => {
+            }).then(function() {
+                window.location.href = '/pauli-test/result/' + sessionId;
+            }).catch(function() {
                 window.location.href = '/pauli-test/result/' + sessionId;
             });
         }
 
+        function updateTimer() {
+        if (!isTestActive) return;
+        
+        if (remainingSeconds <= 0) {
+            // Waktu habis!
+            endTest();
+            return;
+        }
+        
+        var minutes = Math.floor(remainingSeconds / 60);
+        var seconds = remainingSeconds % 60;
+        
+        var timeString = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+        document.getElementById('timer').textContent = timeString;
+        
+        // Peringatan 1 menit terakhir
+        if (remainingSeconds === 60) {
+            // Tampilkan peringatan
+            var timerElement = document.getElementById('timer');
+            timerElement.classList.add('warning');
+            
+            // Optional: play beep sound
+            // var audio = new Audio('/sounds/beep.mp3');
+            // audio.play();
+            
+            // Tampilkan alert
+            alert('Peringatan! Waktu tersisa 1 menit!');
+        }
+        
+        remainingSeconds--;
+        }
         // ================= START =================
         function startTest() {
             document.getElementById('testBody').style.display = 'block';
