@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ApplicantsTemplateExport;
 use App\Models\Applicant;
 use App\Models\PauliQuestion;
 use App\Models\Test;
@@ -14,6 +15,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class PauliTestController extends Controller
 {
@@ -76,8 +80,8 @@ class PauliTestController extends Controller
     public function storeTest(Request $request)
     {
         // Debug: cek data yang masuk
-        \Log::info('Store Test Request:', $request->all());
-        
+        Log::info('Store Test Request:', $request->all());
+
         $validated = $request->validate([
             'test_code' => 'required|unique:tests,test_code',
             'test_name' => 'required|string|max:255',
@@ -91,18 +95,17 @@ class PauliTestController extends Controller
 
         // Hitung total questions secara otomatis
         $validated['total_questions'] = $validated['total_columns'] * ($validated['rows_per_column'] - 1);
-        
+
         // Set is_active default false jika tidak ada di request
         $validated['is_active'] = $request->has('is_active') ? true : false;
-        
+
         try {
             $test = Test::create($validated);
-            
+
             return redirect()->route('tester.tests.edit', $test)
                 ->with('success', 'Test created successfully. Please generate questions.');
-                
         } catch (\Exception $e) {
-            \Log::error('Error creating test: ' . $e->getMessage());
+            Log::error('Error creating test: ' . $e->getMessage());
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Failed to create test: ' . $e->getMessage());
@@ -131,13 +134,13 @@ class PauliTestController extends Controller
             'rows_per_column' => 'required|integer|min:2',
             'is_active' => 'nullable|boolean',
         ]);
-        
+
         // Hitung total questions otomatis
         $validated['total_questions'] = $validated['total_columns'] * ($validated['rows_per_column'] - 1);
         $validated['is_active'] = $request->has('is_active');
-        
+
         $test->update($validated);
-        
+
         return redirect()->route('tester.tests.edit', $test)
             ->with('success', 'Test updated successfully');
     }
@@ -147,19 +150,18 @@ class PauliTestController extends Controller
         try {
             // Hapus semua soal terkait
             $test->pauliQuestions()->delete();
-            
+
             // Hapus test
             $test->delete();
-            
+
             if (request()->ajax()) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Test deleted successfully'
                 ]);
             }
-            
+
             return redirect()->route('tester.tests')->with('success', 'Test deleted successfully');
-            
         } catch (\Exception $e) {
             if (request()->ajax()) {
                 return response()->json([
@@ -167,7 +169,7 @@ class PauliTestController extends Controller
                     'message' => $e->getMessage()
                 ], 500);
             }
-            
+
             return redirect()->back()->with('error', 'Failed to delete test: ' . $e->getMessage());
         }
     }
@@ -175,9 +177,9 @@ class PauliTestController extends Controller
     public function generateQuestions(Test $test)
     {
         $test->pauliQuestions()->delete();
-        
+
         $totalQuestions = $test->total_columns * ($test->rows_per_column - 1);
-        
+
         for ($col = 1; $col <= $test->total_columns; $col++) {
             for ($row = 1; $row <= $test->rows_per_column; $row++) {
                 PauliQuestion::create([
@@ -188,7 +190,7 @@ class PauliTestController extends Controller
                 ]);
             }
         }
-        
+
         return response()->json(['success' => true]);
     }
 
@@ -245,7 +247,7 @@ class PauliTestController extends Controller
     public function sessions(Request $request)
     {
         $query = TestSession::with(['applicant', 'test'])
-            ->orderBy('created_at', 'desc');
+            ->orderBy('id', 'asc');
 
         // Filter by status
         if ($request->has('status') && $request->status != 'all') {
@@ -266,7 +268,20 @@ class PauliTestController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $sessions = $query->paginate(20)->withQueryString();
+        $perPage = $request->get('per_page', 20);
+        $perPage = in_array($perPage, [10, 25, 50, 100]) ? $perPage : 20;
+
+        $sessions = $query->paginate($perPage);
+        $sessions->appends($request->query());
+
+        // \Log::info('Pagination Info:', [
+        //     'total' => $sessions->total(),
+        //     'per_page' => $sessions->perPage(),
+        //     'current_page' => $sessions->currentPage(),
+        //     'last_page' => $sessions->lastPage(),
+        //     'has_pages' => $sessions->hasPages(),
+        //     'count' => $sessions->count()
+        // ]);
 
         $tests = Test::where('is_active', true)->get();
 
@@ -277,7 +292,7 @@ class PauliTestController extends Controller
             'evaluated' => TestSession::where('status', 'evaluated')->count(),
         ];
 
-        return view('tester.sessions.index', compact('sessions', 'tests', 'stats'));
+        return view('tester.sessions.index', compact('sessions', 'tests', 'stats', 'perPage'));
     }
 
     /**
@@ -591,7 +606,7 @@ class PauliTestController extends Controller
             ->where('column_number', $validated['column'])
             ->where('row_number', $validated['row'])
             ->first();
-        
+
         $isRevised = false;
         $revisedCount = 0;
 
@@ -696,23 +711,23 @@ class PauliTestController extends Controller
             'session_id' => 'required|exists:test_sessions,id',
             'end_time' => 'nullable|date'
         ]);
-        
+
         $session = TestSession::findOrFail($validated['session_id']);
-        
+
         // Cek apakah sudah pernah diakhiri
         if ($session->status === 'completed') {
             return response()->json(['success' => true, 'message' => 'Test already completed']);
         }
-        
+
         // Update session
         $session->update([
             'end_time' => $request->end_time ? now() : now(),
             'status' => 'completed'
         ]);
-        
+
         // Hitung skor
         $scoreData = $session->calculateScore();
-        
+
         return response()->json([
             'success' => true,
             'score' => $scoreData
@@ -722,80 +737,86 @@ class PauliTestController extends Controller
     public function result($sessionId)
     {
         $session = TestSession::with(['applicant', 'test'])
-        ->findOrFail($sessionId);
-    
+            ->findOrFail($sessionId);
+
         // Ambil semua jawaban
         $answers = TestAnswer::where('test_session_id', $sessionId)->get();
-        
+
         // ==================== PERHITUNGAN STATISTIK ====================
-        
+
         // 1. Hitung jumlah jawaban yang diisi (total input)
         $totalAnswered = $answers->count();
-        
+
         // 2. Hitung jumlah jawaban benar
         $correctCount = $answers->where('is_correct', true)->count();
-        
+
         // 3. Hitung jumlah jawaban salah
         $wrongCount = $answers->where('is_correct', false)->count();
-        
+
         // 4. Hitung jumlah jawaban yang dikoreksi (diubah/ditimpa)
         $revisedCount = $answers->sum('revised_count');
-        
+
         // 5. Hitung jumlah kolom yang terpenuhi (minimal 1 jawaban per kolom)
         $columnsWithAnswers = $answers->groupBy('column_number')->count();
         $totalColumns = $session->test->total_columns;
         $skippedColumns = $session->skipped_columns;
         $columnsFulfilled = $columnsWithAnswers;
-        
+
         // 6. Hitung akurasi
         $accuracy = $totalAnswered > 0 ? ($correctCount / $totalAnswered) * 100 : 0;
-        
+
         // 7. Hitung rata-rata waktu per jawaban
         $avgTimePerAnswer = $answers->avg('time_taken_seconds') ?? 0;
-        
+
         // 8. Hitung performa per baris (interval)
         $answersByLine = TestAnswer::where('test_session_id', $sessionId)
-            ->select('line_marker', 
+            ->select(
+                'line_marker',
                 DB::raw('COUNT(*) as total'),
                 DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'),
-                DB::raw('SUM(CASE WHEN is_revised THEN 1 ELSE 0 END) as revised'))
+                DB::raw('SUM(CASE WHEN is_revised THEN 1 ELSE 0 END) as revised')
+            )
             ->whereNotNull('line_marker')
             ->groupBy('line_marker')
             ->orderBy('line_marker')
             ->get();
-        
+
         // 9. Hitung performa per kolom
         $answersByColumn = TestAnswer::where('test_session_id', $sessionId)
-            ->select('column_number', 
+            ->select(
+                'column_number',
                 DB::raw('COUNT(*) as total'),
-                DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct'))
+                DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct')
+            )
             ->groupBy('column_number')
             ->orderBy('column_number')
             ->get();
-        
+
         // 10. Hitung kurva kerja (jumlah jawaban per menit)
         $workCurve = TestAnswer::where('test_session_id', $sessionId)
-            ->select(DB::raw('FLOOR(time_taken_seconds / 60) as minute'), 
-                DB::raw('COUNT(*) as count'))
+            ->select(
+                DB::raw('FLOOR(time_taken_seconds / 60) as minute'),
+                DB::raw('COUNT(*) as count')
+            )
             ->groupBy('minute')
             ->orderBy('minute')
             ->get();
-        
+
         // 11. Hitung konsistensi (standar deviasi dari performa per interval)
         $performanceValues = $answersByLine->pluck('total')->toArray();
         $consistency = count($performanceValues) > 1 ? $this->calculateStdDev($performanceValues) : 0;
-        
+
         // 12. Hitung daya tahan (performa akhir vs awal)
-        $firstHalf = array_slice($performanceValues, 0, floor(count($performanceValues)/2));
-        $secondHalf = array_slice($performanceValues, floor(count($performanceValues)/2));
-        $endurance = (count($secondHalf) > 0 && count($firstHalf) > 0) 
-            ? (array_sum($secondHalf)/count($secondHalf)) / (array_sum($firstHalf)/count($firstHalf)) * 100 
+        $firstHalf = array_slice($performanceValues, 0, floor(count($performanceValues) / 2));
+        $secondHalf = array_slice($performanceValues, floor(count($performanceValues) / 2));
+        $endurance = (count($secondHalf) > 0 && count($firstHalf) > 0)
+            ? (array_sum($secondHalf) / count($secondHalf)) / (array_sum($firstHalf) / count($firstHalf)) * 100
             : 100;
-        
+
         // 13. Hitung skor akhir
         $finalScore = $correctCount;
         $session->update(['score' => $finalScore]);
-        
+
         // Kumpulkan semua statistik
         $statistics = [
             'total_answered' => $totalAnswered,
@@ -811,15 +832,15 @@ class PauliTestController extends Controller
             'endurance' => round($endurance, 2),
             'final_score' => $finalScore,
         ];
-        
+
         // Analisis psikologis
         $analysis = $this->getPsychologicalAnalysis($statistics);
-        
+
         return view('pauli-test.result', compact(
-            'session', 
-            'statistics', 
-            'answersByLine', 
-            'answersByColumn', 
+            'session',
+            'statistics',
+            'answersByLine',
+            'answersByColumn',
             'workCurve',
             'analysis'
         ));
@@ -829,12 +850,12 @@ class PauliTestController extends Controller
     {
         $n = count($array);
         if ($n === 0) return 0;
-        
+
         $mean = array_sum($array) / $n;
-        $variance = array_sum(array_map(function($x) use ($mean) {
+        $variance = array_sum(array_map(function ($x) use ($mean) {
             return pow($x - $mean, 2);
         }, $array)) / $n;
-        
+
         return sqrt($variance);
     }
 
@@ -844,7 +865,7 @@ class PauliTestController extends Controller
     private function getPsychologicalAnalysis($stats)
     {
         $analysis = [];
-        
+
         // Analisis Akurasi
         if ($stats['accuracy'] >= 85) {
             $analysis['accuracy'] = 'Sangat Baik - Ketelitian sangat tinggi';
@@ -855,7 +876,7 @@ class PauliTestController extends Controller
         } else {
             $analysis['accuracy'] = 'Kurang - Perlu latihan ketelitian';
         }
-        
+
         // Analisis Konsistensi
         if ($stats['consistency'] < 10) {
             $analysis['consistency'] = 'Sangat Stabil - Performa sangat konsisten';
@@ -866,7 +887,7 @@ class PauliTestController extends Controller
         } else {
             $analysis['consistency'] = 'Tidak Stabil - Performa sangat berfluktuasi';
         }
-        
+
         // Analisis Daya Tahan
         if ($stats['endurance'] >= 90) {
             $analysis['endurance'] = 'Sangat Baik - Daya tahan sangat baik';
@@ -877,7 +898,7 @@ class PauliTestController extends Controller
         } else {
             $analysis['endurance'] = 'Kurang - Mudah lelah, perlu peningkatan daya tahan';
         }
-        
+
         // Analisis Kecepatan
         if ($stats['avg_time_per_answer'] < 3) {
             $analysis['speed'] = 'Sangat Cepat - Bekerja sangat cepat';
@@ -888,7 +909,7 @@ class PauliTestController extends Controller
         } else {
             $analysis['speed'] = 'Lambat - Perlu peningkatan kecepatan';
         }
-        
+
         // Rekomendasi
         $recommendations = [];
         if ($stats['accuracy'] < 70) {
@@ -903,13 +924,13 @@ class PauliTestController extends Controller
         if ($stats['consistency'] > 25) {
             $recommendations[] = 'Jaga konsistensi performa dengan manajemen waktu yang baik';
         }
-        
+
         if (empty($recommendations)) {
             $recommendations[] = 'Pertahankan performa yang sudah baik dan terus tingkatkan';
         }
-        
+
         $analysis['recommendations'] = $recommendations;
-        
+
         return $analysis;
     }
 
@@ -1271,7 +1292,7 @@ class PauliTestController extends Controller
         try {
             $newStatus = $request->is_active == '1' || $request->is_active === true;
             $test->update(['is_active' => $newStatus]);
-            
+
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
@@ -1370,6 +1391,213 @@ class PauliTestController extends Controller
             return 'Kurang';
         } else {
             return 'Sangat Kurang';
+        }
+    }
+
+    public function downloadImportTemplate()
+    {
+        return Excel::download(new ApplicantsTemplateExport(), 'applicant_import_template.xlsx');
+    }
+
+    public function importApplicants(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:5120',
+            'default_password' => 'nullable|min:6'
+        ]);
+
+        $file = $request->file('file');
+        $defaultPassword = $request->default_password ?? 'password';
+        $importedCount = 0;
+        $errors = [];
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        try {
+            $data = [];
+            $headers = [];
+
+            // Baca file berdasarkan extension
+            if ($extension === 'csv') {
+                // Baca CSV
+                $handle = fopen($file->getPathname(), 'r');
+                if ($handle === false) {
+                    throw new \Exception('Tidak dapat membuka file CSV');
+                }
+
+                $headers = fgetcsv($handle);
+                if ($headers === false) {
+                    fclose($handle);
+                    throw new \Exception('File CSV kosong atau format tidak sesuai');
+                }
+
+                // Remove BOM
+                $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
+                $headers = array_map('trim', $headers);
+
+                // Baca data
+                while (($row = fgetcsv($handle)) !== false) {
+                    $rowData = [];
+                    foreach ($headers as $index => $header) {
+                        $rowData[$header] = $row[$index] ?? '';
+                    }
+                    $data[] = $rowData;
+                }
+                fclose($handle);
+            } elseif (in_array($extension, ['xlsx', 'xls'])) {
+                // Baca Excel menggunakan PhpSpreadsheet
+                $spreadsheet = IOFactory::load($file->getPathname());
+                $worksheet = $spreadsheet->getActiveSheet();
+                $rows = $worksheet->toArray();
+
+                if (empty($rows)) {
+                    throw new \Exception('File Excel kosong');
+                }
+
+                // Baris pertama sebagai header
+                $headers = array_map('trim', $rows[0]);
+
+                // Baris selanjutnya sebagai data
+                for ($i = 1; $i < count($rows); $i++) {
+                    $rowData = [];
+                    foreach ($headers as $index => $header) {
+                        $rowData[$header] = $rows[$i][$index] ?? '';
+                    }
+                    $data[] = $rowData;
+                }
+            } else {
+                return redirect()->back()->with('error', 'Format file tidak didukung. Gunakan format CSV, XLS, atau XLSX.');
+            }
+
+            // Validasi header yang diperlukan
+            $requiredHeaders = ['full_name', 'email', 'phone', 'date_of_birth', 'gender'];
+            $missingHeaders = [];
+
+            foreach ($requiredHeaders as $required) {
+                if (!in_array($required, $headers)) {
+                    $missingHeaders[] = $required;
+                }
+            }
+
+            if (!empty($missingHeaders)) {
+                return redirect()->back()->with('error', 'Kolom yang diperlukan tidak ditemukan: ' . implode(', ', $missingHeaders) . '. Silakan download template terlebih dahulu.');
+            }
+
+            DB::beginTransaction();
+
+            $rowNumber = 1;
+            foreach ($data as $rowData) {
+                $rowNumber++;
+
+                // Trim values
+                $rowData = array_map('trim', $rowData);
+
+                // Skip jika baris kosong
+                if (empty($rowData['full_name']) && empty($rowData['email'])) {
+                    continue;
+                }
+
+                // Validasi required fields
+                if (empty($rowData['full_name'])) {
+                    $errors[] = "Baris {$rowNumber}: full_name tidak boleh kosong, dilewati.";
+                    continue;
+                }
+
+                if (empty($rowData['email'])) {
+                    $errors[] = "Baris {$rowNumber}: email tidak boleh kosong, dilewati.";
+                    continue;
+                }
+
+                // Validasi email format
+                if (!filter_var($rowData['email'], FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = "Baris {$rowNumber}: email '{$rowData['email']}' tidak valid, dilewati.";
+                    continue;
+                }
+
+                // Cek apakah email sudah ada
+                $existingUser = User::where('email', $rowData['email'])->first();
+                if ($existingUser) {
+                    $errors[] = "Baris {$rowNumber}: Email {$rowData['email']} sudah terdaftar, dilewati.";
+                    continue;
+                }
+
+                // Validasi date_of_birth
+                $dateOfBirth = null;
+                if (!empty($rowData['date_of_birth'])) {
+                    try {
+                        $dateOfBirth = date('Y-m-d', strtotime($rowData['date_of_birth']));
+                        if ($dateOfBirth == '1970-01-01' || !$dateOfBirth) {
+                            $dateOfBirth = now()->subYears(20)->format('Y-m-d');
+                        }
+                    } catch (\Exception $e) {
+                        $dateOfBirth = now()->subYears(20)->format('Y-m-d');
+                    }
+                } else {
+                    $dateOfBirth = now()->subYears(20)->format('Y-m-d');
+                }
+
+                // Validasi gender
+                $genderInput = strtolower($rowData['gender']);
+                if (in_array($genderInput, ['male', 'laki-laki', 'lk', 'm'])) {
+                    $gender = 'male';
+                } elseif (in_array($genderInput, ['female', 'perempuan', 'pr', 'f'])) {
+                    $gender = 'female';
+                } else {
+                    $gender = 'male';
+                }
+
+                // Create user
+                $user = User::create([
+                    'name' => $rowData['full_name'],
+                    'email' => $rowData['email'],
+                    'password' => Hash::make($defaultPassword),
+                    'role' => 'applicant',
+                    'is_active' => true,
+                ]);
+
+                // Generate participant number
+                $lastParticipant = Applicant::latest('id')->first();
+                $participant_numb = 'P' . str_pad(($lastParticipant ? $lastParticipant->id + 1 : 1), 6, '0', STR_PAD_LEFT);
+
+                // Create applicant
+                Applicant::create([
+                    'user_id' => $user->id,
+                    'participant_numb' => $participant_numb,
+                    'full_name' => $rowData['full_name'],
+                    'date_of_birth' => $dateOfBirth,
+                    'gender' => $gender,
+                    'address' => $rowData['address'] ?? null,
+                    'phone' => $rowData['phone'] ?? null,
+                    'education_background' => $rowData['education_background'] ?? null,
+                    'institution' => $rowData['institution'] ?? null,
+                    'registration_date' => now(),
+                    'status' => 'registered',
+                ]);
+
+                $importedCount++;
+            }
+
+            DB::commit();
+
+            // Prepare message
+            $message = "Berhasil mengimport {$importedCount} peserta.";
+            if (!empty($errors)) {
+                $message .= "<br><br>Catatan:<br>" . implode('<br>', array_slice($errors, 0, 10));
+                if (count($errors) > 10) {
+                    $message .= "<br>... dan " . (count($errors) - 10) . " error lainnya.";
+                }
+            }
+
+            if ($importedCount == 0) {
+                return redirect()->back()->with('error', 'Tidak ada data yang berhasil diimport. ' . $message);
+            }
+
+            return redirect()->route('tester.applicants')->with('success', $message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Import error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+
+            return redirect()->back()->with('error', 'Gagal import data: ' . $e->getMessage());
         }
     }
 }

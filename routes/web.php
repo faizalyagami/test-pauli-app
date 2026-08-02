@@ -1,5 +1,4 @@
 <?php
-// routes/web.php
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
@@ -28,13 +27,13 @@ Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-// Password Reset Routes (Optional)
+// Password Reset Routes
 Route::get('/forgot-password', function () {
     return view('auth.forgot-password');
 })->middleware('guest')->name('password.request');
 
 // ========================================
-// Profile Routes (For All Authenticated Users)
+// Profile Routes
 // ========================================
 Route::middleware(['auth'])->prefix('profile')->name('profile.')->group(function () {
     Route::get('/', [ProfileController::class, 'index'])->name('index');
@@ -47,7 +46,7 @@ Route::middleware(['auth'])->prefix('profile')->name('profile.')->group(function
 });
 
 // ========================================
-// Admin Routes (Full Access)
+// Admin Routes
 // ========================================
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
@@ -65,7 +64,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 });
 
 // ========================================
-// Tester Routes (Operator/Psikolog)
+// Tester Routes
 // ========================================
 Route::middleware(['auth', 'role:admin,tester'])->prefix('tester')->name('tester.')->group(function () {
     // Dashboard
@@ -86,12 +85,17 @@ Route::middleware(['auth', 'role:admin,tester'])->prefix('tester')->name('tester
     Route::get('/applicants', [PauliTestController::class, 'manageApplicants'])->name('applicants');
     Route::get('/applicants/create', [PauliTestController::class, 'createApplicant'])->name('applicants.create');
     Route::post('/applicants', [PauliTestController::class, 'storeApplicant'])->name('applicants.store');
+
+    // Route spesifik
+    Route::get('/applicants/import-template', [PauliTestController::class, 'downloadImportTemplate'])->name('applicants.import-template');
+    Route::post('/applicants/import', [PauliTestController::class, 'importApplicants'])->name('applicants.import');
+    Route::get('/applicants/export', [PauliTestController::class, 'exportApplicants'])->name('applicants.export');
+
+    // Route dengan parameter
     Route::get('/applicants/{applicant}', [PauliTestController::class, 'showApplicant'])->name('applicants.show');
     Route::get('/applicants/{applicant}/edit', [PauliTestController::class, 'editApplicant'])->name('applicants.edit');
     Route::put('/applicants/{applicant}', [PauliTestController::class, 'updateApplicant'])->name('applicants.update');
     Route::delete('/applicants/{applicant}', [PauliTestController::class, 'destroyApplicant'])->name('applicants.destroy');
-    Route::post('/applicants/import', [PauliTestController::class, 'importApplicants'])->name('applicants.import');
-    Route::get('/applicants/export', [PauliTestController::class, 'exportApplicants'])->name('applicants.export');
 
     // Session Management
     Route::get('/sessions', [PauliTestController::class, 'sessions'])->name('sessions');
@@ -110,23 +114,14 @@ Route::middleware(['auth', 'role:admin,tester'])->prefix('tester')->name('tester
     // Profile
     Route::get('/profile', [ProfileController::class, 'testerProfile'])->name('profile');
 
-    // ========================================
-    // Settings Routes - PERBAIKAN (HAPUS DUPLIKASI)
-    // ========================================
+    // Settings Routes
     Route::prefix('settings')->name('settings.')->group(function () {
-        // Main settings page
         Route::get('/', [PauliTestController::class, 'testerSettings'])->name('index');
         Route::put('/', [PauliTestController::class, 'updateTesterSettings'])->name('update');
-
-        // Logs
         Route::get('/logs', [PauliTestController::class, 'settingsLogs'])->name('logs');
         Route::post('/clear-logs', [PauliTestController::class, 'clearLogs'])->name('clear-logs');
-
-        // Backup & Cache
         Route::post('/backup', [PauliTestController::class, 'createBackup'])->name('backup');
         Route::post('/clear-cache', [PauliTestController::class, 'clearCache'])->name('clear-cache');
-
-        // User Management
         Route::get('/users', [PauliTestController::class, 'settingsUsers'])->name('users');
         Route::post('/users', [PauliTestController::class, 'storeUser'])->name('users.store');
         Route::get('/users/{user}', [PauliTestController::class, 'getUser'])->name('users.show');
@@ -134,14 +129,10 @@ Route::middleware(['auth', 'role:admin,tester'])->prefix('tester')->name('tester
         Route::delete('/users/{user}', [PauliTestController::class, 'destroyUser'])->name('users.destroy');
         Route::post('/users/{user}/toggle-status', [PauliTestController::class, 'toggleUserStatus'])->name('users.toggle-status');
     });
-
-    // HAPUS DUPLIKASI INI - Jangan tambahkan route settings lagi di sini
-    // Route::get('/settings', function () { ... })->name('settings');
-    // Route::get('/settings', [PauliTestController::class, 'testerSettings'])->name('settings');
 });
 
 // ========================================
-// Pauli Test Routes (Core Test Taking)
+// Pauli Test Routes
 // ========================================
 Route::middleware(['auth'])->prefix('pauli-test')->name('pauli-test.')->group(function () {
     Route::get('/{applicant}/{test}/start', [PauliTestController::class, 'startTest'])->name('start');
@@ -156,21 +147,24 @@ Route::middleware(['auth'])->prefix('pauli-test')->name('pauli-test.')->group(fu
 });
 
 // ========================================
-// Applicant Routes (For Test Participants)
+// Applicant Routes
 // ========================================
 Route::middleware(['auth', 'role:applicant'])->prefix('applicant')->name('applicant.')->group(function () {
     Route::get('/dashboard', [ApplicantController::class, 'dashboard'])->name('dashboard');
     Route::get('/profile', [ApplicantController::class, 'profile'])->name('profile');
+    Route::get('/profile/edit', [ApplicantController::class, 'editProfile'])->name('profile.edit');
     Route::put('/profile', [ApplicantController::class, 'updateProfile'])->name('profile.update');
     Route::get('/history', [ApplicantController::class, 'history'])->name('history');
     Route::get('/history/{session}', [ApplicantController::class, 'showResult'])->name('history.show');
     Route::get('/tests', [ApplicantController::class, 'availableTests'])->name('tests');
     Route::get('/tests/{test}/start', [ApplicantController::class, 'startTest'])->name('tests.start');
     Route::get('/statistics', [ApplicantController::class, 'statistics'])->name('statistics');
+    Route::get('/certificate/{session}', [ApplicantController::class, 'certificate'])->name('certificate');
+    Route::get('/certificate/{session}/download', [ApplicantController::class, 'downloadCertificate'])->name('certificate.download');
 });
 
 // ========================================
-// Fallback Route (404 Not Found)
+// Fallback Route
 // ========================================
 Route::fallback(function () {
     return response()->view('errors.404', [], 404);

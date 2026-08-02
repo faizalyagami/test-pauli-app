@@ -94,10 +94,54 @@ class ApplicantController extends Controller
      */
     public function profile()
     {
-        $applicant = Auth::user()->applicant;
         $user = Auth::user();
+        $applicant = $user->applicant;
+
+        // Jika applicant tidak ada, buat baru
+        if (!$applicant) {
+            $participant_numb = 'P' . str_pad(Applicant::count() + 1, 6, '0', STR_PAD_LEFT);
+            $applicant = Applicant::create([
+                'user_id' => $user->id,
+                'participant_numb' => $participant_numb,
+                'full_name' => $user->name,
+                'date_of_birth' => now()->subYears(20),
+                'gender' => 'male',
+                'address' => '',
+                'phone' => '',
+                'registration_date' => now(),
+                'status' => 'registered',
+            ]);
+        }
 
         return view('applicant.profile', compact('applicant', 'user'));
+    }
+
+    public function editProfile()
+    {
+        // Load user beserta relasi applicant
+        $user = Auth::user()->load('applicant');
+
+        // Jika applicant tidak ada, buat baru
+        if (!$user->applicant) {
+            $participant_numb = 'P' . str_pad(Applicant::count() + 1, 6, '0', STR_PAD_LEFT);
+            $applicant = Applicant::create([
+                'user_id' => $user->id,
+                'participant_numb' => $participant_numb,
+                'full_name' => $user->name,
+                'date_of_birth' => now()->subYears(20),
+                'gender' => 'male',
+                'address' => '',
+                'phone' => '',
+                'registration_date' => now(),
+                'status' => 'registered',
+            ]);
+            $user->load('applicant');
+        }
+
+        return view('applicant.profile-edit', [
+            'applicant' => $user->applicant,
+            'user' => $user
+        ]);
     }
 
     /**
@@ -252,5 +296,46 @@ class ApplicantController extends Controller
         $last = self::latest('id')->first();
         $number = $last ? intval(substr($last->participant_numb, 1)) + 1 : 1;
         return 'P' . str_pad($number, 6, '0', STR_PAD_LEFT);
+    }
+
+    public function certificate(TestSession $session)
+    {
+        // Check ownership
+        if ($session->applicant_id != Auth::user()->applicant->id) {
+            abort(403, 'Unauthorized');
+        }
+
+        // Only completed tests can have certificate
+        if ($session->status !== 'completed') {
+            return redirect()->back()->with('error', 'Sertifikat hanya tersedia untuk test yang sudah selesai.');
+        }
+
+        $applicant = $session->applicant;
+        $scoreData = $session->calculateScore();
+
+        return view('applicant.certificate', compact('session', 'applicant', 'scoreData'));
+    }
+
+    /**
+     * Download Certificate as PDF
+     */
+    public function downloadCertificate(TestSession $session)
+    {
+        // Check ownership
+        if ($session->applicant_id != Auth::user()->applicant->id) {
+            abort(403, 'Unauthorized');
+        }
+
+        if ($session->status !== 'completed') {
+            return redirect()->back()->with('error', 'Sertifikat hanya tersedia untuk test yang sudah selesai.');
+        }
+
+        $applicant = $session->applicant;
+        $scoreData = $session->calculateScore();
+
+        $pdf = Pdf::loadView('applicant.certificate-pdf', compact('session', 'applicant', 'scoreData'));
+        $pdf->setPaper('A4', 'landscape');
+
+        return $pdf->download('certificate_' . $applicant->participant_numb . '.pdf');
     }
 }
