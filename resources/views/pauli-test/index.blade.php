@@ -1,4 +1,3 @@
-{{-- resources/views/pauli-test/index.blade.php --}}
 @extends('layouts.guest')
 
 @section('title', 'Pauli Test - ' . $applicant->full_name)
@@ -55,7 +54,7 @@
 
 <style>
     .test-container {
-        max-width: 95%;
+        max-width: 100%;
         margin: 20px auto;
         background: white;
         border-radius: 15px;
@@ -77,6 +76,9 @@
 
     .timer {
         color: #2c3e50;
+        font-size: 48px !important;
+        font-weight: bold;
+        font-family: monospace;
     }
 
     .timer.warning {
@@ -97,60 +99,68 @@
             opacity: 1;
         }
     }
-    
+
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 70vh;
+        position: relative;
+    }
+
     .pauli-grid {
         font-family: 'Courier New', monospace;
         border-collapse: collapse;
-        width: max-content;
-        /* width: 100%;
-        margin: 0; */
+        font-size: 13px;
+        min-width: 100%;
     }
 
     .pauli-grid th {
         background: #f8f9fa;
-        padding: 10px;
+        padding: 10px 5px;
         border: 1px solid #ddd;
         position: sticky;
         top: 0;
         z-index: 10;
         font-weight: bold;
+        text-align: center;
+        min-width: 70px;
     }
 
     .pauli-grid td {
         border: 1px solid #ddd;
-        padding: 8px;
+        padding: 8px 4px;
         text-align: center;
         vertical-align: middle;
-        min-width: 90px;
-    }
-
-    .table-wrapper {
-        width: 100%;
-        overflow-x: auto;
     }
 
     .top-number {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
         color: #3498db;
-        margin-bottom: 5px;
     }
 
     .bottom-number {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
         color: #27ae60;
         margin-top: 5px;
     }
 
+    .answer-area {
+        margin: 5px 0;
+    }
+
     .answer-input {
-        width: 55px;
+        width: 50px;
         text-align: center;
         border: 2px solid #ddd;
         border-radius: 5px;
         padding: 5px;
-        font-size: 16px;
+        font-size: 14px;
         font-family: monospace;
+        display: block;
+        margin: 0 auto;
     }
 
     .answer-input:focus {
@@ -163,8 +173,22 @@
         cursor: not-allowed;
     }
 
-    .line-marker {
+    /* Garis penanda pada input yang sedang dikerjakan */
+    .answer-input.line-marker {
         border-bottom: 3px solid red !important;
+        animation: blink 1s ease-in-out 3;
+    }
+
+    @keyframes blink {
+
+        0%,
+        100% {
+            border-bottom-color: red;
+        }
+
+        50% {
+            border-bottom-color: #ff6666;
+        }
     }
 
     .skipped-column {
@@ -182,292 +206,422 @@
         font-size: 8px;
         padding: 2px 4px;
         border-radius: 3px;
+        z-index: 5;
+    }
+
+    @media (max-width: 768px) {
+        .pauli-grid th {
+            font-size: 10px;
+            padding: 5px;
+            min-width: 50px;
+        }
+
+        .answer-input {
+            width: 40px;
+            font-size: 12px;
+            padding: 3px;
+        }
+
+        .top-number,
+        .bottom-number {
+            font-size: 11px;
+        }
+    }
+    .answer-input.revised {
+    background-color: #fff3cd !important;
+    animation: revisedBlink 0.5s ease-in-out 2;
+    }
+
+    @keyframes revisedBlink {
+        0%, 100% { background-color: #fff3cd; }
+        50% { background-color: #ffeaa7; }
     }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    $(document).ready(function() {
+    window.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM fully loaded');
 
         // Data dari server
-        const testData = @json($testData);
-        const sessionId = {{ $session->id }};
-        const totalColumns = {{ $test->total_columns }};
-        const rowsPerColumn = {{ $test->rows_per_column }};
-        const totalDuration = {{ $test->duration_minutes * 60 }};
+        var testData = @json($testData);
+        var sessionId = @json($session->id);
+        var totalColumns = @json($test->total_columns);
+        var rowsPerColumn = @json($test->rows_per_column);
+        var totalDuration = @json($test->duration_minutes * 60);
 
-        const testStatus = "{{ $session->status }}";
-        const startedAt = "{{ $session->started_at }}";
+        var totalAnswerRows = rowsPerColumn - 1;
 
-        // Variables
-        let startTime = null;
-        let currentLine = 0;
-        let skippedColumns = [];
-        let answers = {};
-        let timerInterval = null;
-        let lineInterval = null;
-        let remainingSeconds = totalDuration;
-        let isTestActive = false;
+        var startTime = null;
+        var currentLine = 0;
+        var skippedColumns = [];
+        var answers = {};
+        var timerInterval = null;
+        var lineInterval = null;
+        var remainingSeconds = totalDuration;
+        var isTestActive = false;
+        var gridRendered = false;
+        var currentRow = 1;
+        var isEnding = false;
+
+        // 🔥 TRACK INPUT TERAKHIR
+        var lastAnswered = null;
+
+        window.addEventListener('beforeunload', function(e) {
+            if (isTestActive) {
+                e.preventDefault();
+                e.returnValue = 'Tes masih berjalan. Jika Anda keluar, jawaban tidak akan tersimpan.';
+                return e.returnValue;
+            }
+        });
 
         // ================= RENDER GRID =================
         function renderGrid() {
-            let html = '<table class="pauli-grid"><thead><tr>';
+            if (gridRendered) return;
 
-            for (let col = 1; col <= totalColumns; col++) {
-                html += `<th>Kolom ${col}</th>`;
+            var html = '<table class="pauli-grid"><thead><tr>';
+            for (var col = 1; col <= totalColumns; col++) {
+                html += '<th>Kolom ' + col + '</th>';
             }
-
             html += '</tr></thead><tbody>';
 
-            for (let row = 1; row <= rowsPerColumn; row++) {
+            html += '<tr>';
+            for (var col = 1; col <= totalColumns; col++) {
+                var value = testData[col - 1]?.[0]?.value ?? '?';
+                html += '<td><div class="top-number">' + value + '</div></td>';
+            }
+            html += '</tr>';
+
+            for (var row = 1; row <= totalAnswerRows; row++) {
                 html += '<tr>';
+                for (var col = 1; col <= totalColumns; col++) {
+                    var isSkipped = skippedColumns.includes(col);
+                    var answer = answers[col + '_' + row] || '';
+                    var bottomValue = testData[col - 1]?.[row]?.value ?? '?';
 
-                for (let col = 1; col <= totalColumns; col++) {
-
-                    const cellData = testData[col - 1]?.[row - 1] || { value: '' };
-                    const value = cellData.value || '';
-                    const isSkipped = skippedColumns.includes(col);
-                    const answer = answers[`${col}_${row}`] || '';
-
-                    html += `<td class="${isSkipped ? 'skipped-column' : ''}" data-col="${col}" data-row="${row}">
-                        <div class="top-number">${value}</div>`;
-
-                    if (row < rowsPerColumn) {
-                        const nextValue = testData[col - 1]?.[row]?.value || '';
-
-                        html += `
-                            <input type="text" class="answer-input" data-col="${col}" data-row="${row}" 
-                            value="${answer}" maxlength="1" ${isSkipped ? 'disabled' : ''}>
-                            <div class="bottom-number">${nextValue}</div>
-                        `;
-                    }
-
-                    html += `</td>`;
+                    html += '<td data-col="' + col + '" data-row="' + row + '">';
+                    html += '<input type="text" class="answer-input" data-col="' + col + '" data-row="' + row + '" value="' + answer + '" maxlength="1" ' + (isSkipped ? 'disabled' : '') + '>';
+                    html += '<div class="bottom-number">' + bottomValue + '</div>';
+                    html += '</td>';
                 }
-
                 html += '</tr>';
             }
 
             html += '</tbody></table>';
 
-            $('#pauliGridContainer').html(html);
-
-            $('#skipColumnBtn').show();
+            document.getElementById('pauliGridContainer').innerHTML = html;
+            gridRendered = true;
+            document.getElementById('skipColumnBtn').style.display = 'inline-block';
         }
 
+        // ================= FUNGSI BLINK MERAH =================
+        function blinkRed(element) {
+            if (!element) return;
+            
+            // Simpan warna asli
+            var originalBorder = element.style.borderColor;
+            var originalBg = element.style.backgroundColor;
+            
+            // Ubah jadi merah
+            element.style.borderColor = '#dc3545';
+            element.style.borderWidth = '3px';
+            element.style.backgroundColor = '#ffe0e0';
+            element.style.transition = 'all 0.1s ease';
+            
+            // Blink 3 kali
+            var blinkCount = 0;
+            var blinkInterval = setInterval(function() {
+                if (blinkCount >= 3) {
+                    clearInterval(blinkInterval);
+                    // Kembalikan ke warna asli
+                    element.style.borderColor = originalBorder;
+                    element.style.borderWidth = '2px';
+                    element.style.backgroundColor = originalBg;
+                } else {
+                    if (blinkCount % 2 === 0) {
+                        element.style.borderColor = '#ff6b6b';
+                        element.style.backgroundColor = '#fff0f0';
+                    } else {
+                        element.style.borderColor = '#dc3545';
+                        element.style.backgroundColor = '#ffe0e0';
+                    }
+                    blinkCount++;
+                }
+            }, 200);
+        }
+        
         // ================= SAVE ANSWER =================
         function saveAnswer(col, row, answer) {
-
-            const key = `${col}_${row}`;
+            var key = col + '_' + row;
+            var isRevised = false;
+            
+            // CEK APAKAH JAWABAN SUDAH PERNAH DIISI SEBELUMNYA
+            if (answers[key] !== undefined && answers[key] !== '') {
+                isRevised = true; // INI ADALAH JAWABAN REVISI (DITIMPA)
+                console.log('JAWABAN DIREVISI - Kolom:', col, 'Baris:', row, 'Lama:', answers[key], 'Baru:', answer);
+            }
+            
+            // SIMPAN JAWABAN KE VARIABEL LOKAL
             answers[key] = answer;
-
-            const elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
-
-            $.post('/pauli-test/save-answer', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId,
-                column: col,
-                row: row,
-                answer: answer,
-                time_taken: elapsedSeconds,
-                line_marker: currentLine
+            
+            // SIMPAN POSISI TERAKHIR UNTUK GARIS
+            lastAnswered = { col: col, row: row };
+            
+            var elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
+            
+            // KIRIM KE SERVER DENGAN STATUS REVISI
+            fetch('/pauli-test/save-answer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    column: col,
+                    row: row,
+                    answer: answer,
+                    time_taken: elapsedSeconds,
+                    line_marker: currentLine,
+                    is_revised: isRevised  // 🔥 KIRIM STATUS REVISI
+                })
             });
+            
+            // BERI FEEDBACK VISUAL UNTUK JAWABAN YANG DIREVISI
+            if (isRevised) {
+                var inputElement = document.querySelector('.answer-input[data-col="' + col + '"][data-row="' + row + '"]');
+                if (inputElement) {
+                    // TAMBAHKAN EFEK KEDIP KUNING UNTUK MENANDAI REVISI
+                    inputElement.style.backgroundColor = '#fff3cd';
+                    inputElement.style.transition = 'background-color 0.3s';
+                    setTimeout(function() {
+                        inputElement.style.backgroundColor = '';
+                    }, 500);
+                }
+            }
         }
 
-        // ================= INPUT HANDLER =================
-        $(document).on('input', '.answer-input', function() {
+        // // ================= INPUT =================
+        // document.addEventListener('input', function(e) {
+        //     if (e.target.classList.contains('answer-input')) {
+        //         var input = e.target;
+        //         var value = input.value;
 
-            let value = $(this).val();
+        //         if (value && !isNaN(value)) {
+        //             var lastDigit = value.toString().slice(-1);
+        //             input.value = lastDigit;
 
-            if (value && !isNaN(value)) {
+        //             var col = parseInt(input.dataset.col);
+        //             var row = parseInt(input.dataset.row);
 
-                let lastDigit = value.toString().slice(-1);
-                $(this).val(lastDigit);
+        //             saveAnswer(col, row, lastDigit);
+        //         }
+        //     }
+        // });
 
-                let col = $(this).data('col');
-                let row = $(this).data('row');
+        // ================= INPUT HANDLER DENGAN DETEKSI PERUBAHAN =================
+            document.addEventListener('input', function(e) {
+                if (e.target.classList.contains('answer-input')) {
+                    var input = e.target;
+                    var value = input.value;
+                    var col = parseInt(input.dataset.col);
+                    var row = parseInt(input.dataset.row);
+                    var oldValue = answers[col + '_' + row] || '';
+                    
+                    if (value && !isNaN(value)) {
+                        var lastDigit = value.toString().slice(-1);
+                        input.value = lastDigit;
+                        
+                        // CEK APAKAH NILAI BERUBAH (REVISI)
+                        if (oldValue !== '' && oldValue !== lastDigit) {
+                            // INI ADALAH REVISI
+                            saveAnswerWithRevision(col, row, lastDigit, true);
+                            
+                            // TAMBAHKAN CLASS REVISI SEMENTARA
+                            input.classList.add('revised');
+                            setTimeout(function() {
+                                input.classList.remove('revised');
+                            }, 1000);
+                        } else {
+                            // JAWABAN PERTAMA KALI
+                            saveAnswerWithRevision(col, row, lastDigit, false);
+                        }
+                    } else if (value === '') {
+                        // JIKA INPUT DIKOSONGKAN, TETAP KIRIM SEBAGAI REVISI (MENGHAPUS JAWABAN)
+                        saveAnswerWithRevision(col, row, '', oldValue !== '');
+                    }
+                }
+            });
 
-                saveAnswer(col, row, lastDigit);
+        // FUNGSI SAVE ANSWER DENGAN PARAMETER REVISI
+        function saveAnswerWithRevision(col, row, answer, isRevised) {
+            var key = col + '_' + row;
+            var oldAnswer = answers[key] || '';
+            
+            // SIMPAN KE VARIABEL LOKAL
+            answers[key] = answer;
+            lastAnswered = { col: col, row: row };
+            
+            var elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
+            
+            // KIRIM KE SERVER
+            fetch('/pauli-test/save-answer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    column: col,
+                    row: row,
+                    answer: answer,
+                    time_taken: elapsedSeconds,
+                    line_marker: currentLine,
+                    is_revised: isRevised,
+                    old_answer: oldAnswer  // KIRIM JAWABAN LAMA UNTUK REFERENSI
+                })
+            });
+            
+            // LOG UNTUK DEBUG
+            if (isRevised) {
+                console.log('📝 REVISI DETEKSI - Kolom:', col, 'Baris:', row, 'Lama:', oldAnswer, 'Baru:', answer);
             }
-        });
-
+        }
         // ================= TIMER =================
         function updateTimer() {
-
             if (!isTestActive) return;
 
-            const minutes = Math.floor(remainingSeconds / 60);
-            const seconds = remainingSeconds % 60;
+            var minutes = Math.floor(remainingSeconds / 60);
+            var seconds = remainingSeconds % 60;
 
-            $('#timer').text(
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-            );
+            document.getElementById('timer').textContent =
+                minutes.toString().padStart(2, '0') + ':' +
+                seconds.toString().padStart(2, '0');
 
-            if (remainingSeconds <= 60) {
-                $('#timer').addClass('warning');
-            }
-
-            if (remainingSeconds <= 0) {
-                endTest();
-            }
-
+            if (remainingSeconds <= 0) endTest();
             remainingSeconds--;
         }
 
         function startTimer() {
-
-            if (timerInterval) clearInterval(timerInterval);
-
             timerInterval = setInterval(updateTimer, 1000);
             updateTimer();
         }
 
-        // ================= LINE MARKER =================
+        // ================= GARIS TIAP 3 MENIT =================
         function markLine() {
-
-            if (!isTestActive) return;
+            if (!isTestActive || !lastAnswered) return;
 
             currentLine++;
-            $('#lineCount').text(currentLine);
+            document.getElementById('lineCount').textContent = currentLine;
 
-            const rowToMark = Math.ceil(currentLine / (totalColumns / 5));
+            var selector = '.answer-input[data-col="' + lastAnswered.col + '"][data-row="' + lastAnswered.row + '"]';
+            var input = document.querySelector(selector);
 
-            if (rowToMark <= rowsPerColumn) {
-
-                $(`.pauli-grid tbody tr:nth-child(${rowToMark}) td`)
-                    .addClass('line-marker');
-
-                setTimeout(() => {
-                    $(`.pauli-grid tbody tr:nth-child(${rowToMark}) td`)
-                        .removeClass('line-marker');
-                }, 3000);
+            if (input) {
+                input.classList.add('line-marker'); // 🔴 garis merah (permanen)
             }
 
-            const elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
+            var elapsedSeconds = Math.floor((new Date() - startTime) / 1000);
 
-            $.post('/pauli-test/mark-line', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId,
-                line_number: currentLine,
-                time_mark: elapsedSeconds
+            fetch('/pauli-test/mark-line', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    line_number: currentLine,
+                    time_mark: elapsedSeconds
+                })
             });
+
+            if (currentLine >= 20) clearInterval(lineInterval);
         }
 
         function startLineMarker() {
-            if (lineInterval) clearInterval(lineInterval);
-            lineInterval = setInterval(markLine, 180000);
-            setTimeout(markLine, 100);
-        }
-
-        // ================= SKIP =================
-        function skipColumn() {
-
-            const col = prompt(`Kolom (1-${totalColumns})`);
-
-            if (!col || isNaN(col)) return;
-
-            const colNumber = parseInt(col);
-
-            if (colNumber < 1 || colNumber > totalColumns || skippedColumns.includes(colNumber)) {
-                alert('Tidak valid');
-                return;
-            }
-
-            skippedColumns.push(colNumber);
-
-            $(`.answer-input[data-col="${colNumber}"]`).prop('disabled', true);
-            $(`td[data-col="${colNumber}"]`).addClass('skipped-column');
-
-            $('#skippedCount').text(skippedColumns.length);
-
-            $.post('/pauli-test/skip-column', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId,
-                column: colNumber
-            });
+            lineInterval = setInterval(markLine, 180000); // 3 menit
         }
 
         // ================= END =================
         function endTest() {
-
-            if (!isTestActive) return;
-
+            if (!isTestActive || isEnding) return;
+            
+            isEnding = true;
             isTestActive = false;
-
-            clearInterval(timerInterval);
-            clearInterval(lineInterval);
-
-            $.post('/pauli-test/end', {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                session_id: sessionId
-            }).done(() => {
+            
+            // Nonaktifkan semua input
+            var allInputs = document.querySelectorAll('.answer-input');
+            allInputs.forEach(function(input) {
+                input.disabled = true;
+            });
+            
+            if (timerInterval) clearInterval(timerInterval);
+            if (lineInterval) clearInterval(lineInterval);
+            
+            fetch('/pauli-test/end', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    end_time: new Date().toISOString()
+                })
+            }).then(function() {
+                window.location.href = '/pauli-test/result/' + sessionId;
+            }).catch(function() {
                 window.location.href = '/pauli-test/result/' + sessionId;
             });
         }
 
+        function updateTimer() {
+        if (!isTestActive) return;
+        
+        if (remainingSeconds <= 0) {
+            // Waktu habis!
+            endTest();
+            return;
+        }
+        
+        var minutes = Math.floor(remainingSeconds / 60);
+        var seconds = remainingSeconds % 60;
+        
+        var timeString = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+        document.getElementById('timer').textContent = timeString;
+        
+        // Peringatan 1 menit terakhir
+        if (remainingSeconds === 60) {
+            // Tampilkan peringatan
+            var timerElement = document.getElementById('timer');
+            timerElement.classList.add('warning');
+            
+            // Optional: play beep sound
+            // var audio = new Audio('/sounds/beep.mp3');
+            // audio.play();
+            
+            // Tampilkan alert
+            alert('Peringatan! Waktu tersisa 1 menit!');
+        }
+        
+        remainingSeconds--;
+        }
         // ================= START =================
-        function startTest(resume = false) {
-
-            $('#testBody').show();
+        function startTest() {
+            document.getElementById('testBody').style.display = 'block';
+            startTime = new Date();
             renderGrid();
-
-            // hitung waktu jika resume
-            if (resume && startedAt) {
-                const start = new Date(startedAt);
-                const now = new Date();
-                const elapsed = Math.floor((now - start) / 1000);
-                remainingSeconds = totalDuration - elapsed;
-
-                if (remainingSeconds <= 0) {
-                    endTest();
-                    return;
-                }
-
-                startTime = start;
-            } else {
-                startTime = new Date();
-
-                $.post('/pauli-test/start', {
-                    _token: $('meta[name="csrf-token"]').attr('content'),
-                    session_id: sessionId
-                });
-            }
-
             startTimer();
             startLineMarker();
-
             isTestActive = true;
-
-            $('#skipColumnBtn').off().on('click', skipColumn);
         }
 
-        // ================= AUTO RESUME =================
-        if (testStatus === 'started') {
-            $('#instructionModal').hide();
-            startTest(true);
-        } 
-        else if (testStatus === 'finished') {
-            window.location.href = '/pauli-test/result/' + sessionId;
-        } 
-        else {
-            $('#instructionModal').show();
-        }
-
-        // ================= START BUTTON =================
-        $('#startTestBtn').on('click', function() {
-            $('#instructionModal').fadeOut(300, function() {
-                startTest(false);
-            });
+        document.getElementById('startTestBtn').addEventListener('click', function() {
+            document.getElementById('instructionModal').style.display = 'none';
+            startTest();
         });
-
-        // ================= WARNING REFRESH =================
-        window.addEventListener('beforeunload', function (e) {
-            if (isTestActive) {
-                e.preventDefault();
-                e.returnValue = '';
-            }
-        });
-
     });
 </script>
 @endsection

@@ -17,12 +17,15 @@ class TestAnswer extends Model
         'answer_value',
         'correct_value',
         'is_correct',
+        'is_revised',
+        'revised_count',
         'time_taken_seconds',
         'line_marker'
     ];
 
     protected $casts = [
-        'is_correct' => 'boolean'
+        'is_correct' => 'boolean',
+        'is_revised' => 'boolean',
     ];
 
     public function testSession()

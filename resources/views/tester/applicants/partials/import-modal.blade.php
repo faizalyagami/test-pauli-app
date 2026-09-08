@@ -25,8 +25,8 @@
 
                     <div class="mb-3">
                         <label class="form-label">Default Password</label>
-                        <input type="text" name="default_password" class="form-control" value="password" required>
-                        <small class="text-muted">Password for imported applicants</small>
+                        <input type="text" name="default_password" class="form-control" value="password">
+                        <small class="text-muted">Password untuk peserta yang diimport (default: password)</small>
                     </div>
 
                     <div class="form-check mb-3">
@@ -37,7 +37,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <a href="{{ asset('templates/applicant_import_template.xlsx') }}" class="btn btn-secondary">
+                    <a href="{{ route('tester.applicants.import-template') }}" class="btn btn-secondary">
                         <i class="fas fa-download me-1"></i> Download Template
                     </a>
                     <button type="submit" class="btn btn-primary">

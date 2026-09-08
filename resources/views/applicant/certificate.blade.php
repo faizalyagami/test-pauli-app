@@ -1,74 +1,98 @@
-{{-- resources/views/applicant/certificate.blade.php --}}
-@extends('layouts.print')
+@extends('layouts.app')
 
 @section('title', 'Certificate of Completion')
 
-@section('print-content')
-<div class="certificate-container" style="text-align: center; padding: 50px;">
-    <div class="certificate-border" style="border: 10px solid #3498db; padding: 30px;">
-        <div class="certificate-header">
-            <img src="{{ asset('images/logo.png') }}" alt="Logo" style="height: 80px; margin-bottom: 20px;">
-            <h1 style="color: #2c3e50; font-size: 48px; margin-bottom: 20px;">CERTIFICATE OF COMPLETION</h1>
-            <p style="font-size: 18px; color: #7f8c8d;">This certificate is proudly presented to</p>
-        </div>
+@section('content')
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-lg border-0">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <img src="{{ asset('images/logo.png') }}" alt="Logo" style="height: 80px;">
+                            <h1 class="mt-3" style="color: #2c3e50;">CERTIFICATE OF COMPLETION</h1>
+                            <hr class="w-25 mx-auto" style="height: 3px; background: #3498db;">
+                        </div>
 
-        <div class="certificate-body">
-            <h2 style="font-size: 36px; color: #3498db; margin: 30px 0;">
-                {{ $applicant->full_name }}
-            </h2>
-            <p style="font-size: 16px;">Participant Number: <strong>{{ $applicant->participant_numb }}</strong></p>
+                        <div class="text-center mb-4">
+                            <p class="lead">This certificate is proudly presented to</p>
+                            <h2 class="display-4 text-primary">{{ $applicant->full_name }}</h2>
+                            <p class="text-muted">Participant Number: <strong>{{ $applicant->participant_numb }}</strong>
+                            </p>
+                        </div>
 
-            <div style="margin: 30px 0;">
-                <p>For successfully completing the</p>
-                <h3 style="color: #2c3e50;">{{ $session->test->test_name }}</h3>
-                <p>with a score of <strong>{{ number_format($scoreData['correct']) }}</strong> points</p>
-                <p>and accuracy of <strong>{{ number_format($scoreData['accuracy'], 1) }}%</strong></p>
-            </div>
+                        <div class="text-center mb-4">
+                            <p>For successfully completing the</p>
+                            <h3>{{ $session->test->test_name }}</h3>
+                            <div class="row justify-content-center mt-4">
+                                <div class="col-md-4">
+                                    <div class="border rounded p-3">
+                                        <h5>Score</h5>
+                                        <h2 class="text-success">{{ number_format($scoreData['correct']) }}</h2>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="border rounded p-3">
+                                        <h5>Accuracy</h5>
+                                        <h2 class="text-info">{{ number_format($scoreData['accuracy'], 1) }}%</h2>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="border rounded p-3">
+                                        <h5>Date</h5>
+                                        <h2 class="text-warning">{{ $session->end_time->format('d/m/Y') }}</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-            <div style="margin: 40px 0;">
-                <p>Date of Completion: <strong>{{ $session->end_time->format('d F Y') }}</strong></p>
-                <p>Test Duration: <strong>{{ $session->start_time->diffInMinutes($session->end_time) }} minutes</strong></p>
-            </div>
-        </div>
+                        <div class="row mt-5">
+                            <div class="col-6 text-center">
+                                <hr style="width: 200px; margin: 0 auto;">
+                                <p class="mt-2">Test Administrator</p>
+                            </div>
+                            <div class="col-6 text-center">
+                                <hr style="width: 200px; margin: 0 auto;">
+                                <p class="mt-2">Date Issued</p>
+                            </div>
+                        </div>
 
-        <div class="certificate-footer" style="margin-top: 50px;">
-            <div style="display: flex; justify-content: space-between;">
-                <div style="text-align: left;">
-                    <hr style="width: 200px; margin-bottom: 5px;">
-                    <p>Test Administrator</p>
+                        <div class="text-center mt-4">
+                            <p class="text-muted small">
+                                Certificate ID: {{ $session->id }}-{{ $applicant->participant_numb }}
+                            </p>
+                        </div>
+
+                        <div class="text-center mt-4">
+                            <a href="{{ route('applicant.certificate.download', $session) }}" class="btn btn-primary">
+                                <i class="fas fa-download me-2"></i> Download PDF
+                            </a>
+                            <a href="{{ route('applicant.history') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i> Back to History
+                            </a>
+                            <button onclick="window.print()" class="btn btn-info">
+                                <i class="fas fa-print me-2"></i> Print
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align: right;">
-                    <hr style="width: 200px; margin-bottom: 5px;">
-                    <p>Date Issued</p>
-                </div>
             </div>
-        </div>
-
-        <div style="margin-top: 30px;">
-            <p class="text-muted" style="font-size: 12px;">
-                Certificate ID: {{ $session->id }}-{{ $applicant->participant_numb }}
-            </p>
         </div>
     </div>
-</div>
 
-<style>
-    @media print {
-        body {
-            margin: 0;
-            padding: 0;
-        }
+    <style>
+        @media print {
 
-        .certificate-container {
-            width: 100%;
-            margin: 0;
-            padding: 20px;
-        }
+            .btn,
+            .navbar-top,
+            .sidebar {
+                display: none !important;
+            }
 
-        .certificate-border {
-            border: 10px solid #3498db !important;
-            page-break-inside: avoid;
+            .card {
+                box-shadow: none !important;
+                border: 1px solid #ddd;
+            }
         }
-    }
-</style>
+    </style>
 @endsection

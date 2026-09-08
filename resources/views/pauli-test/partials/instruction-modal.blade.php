@@ -1,5 +1,5 @@
 {{-- resources/views/pauli-test/partials/instruction-modal.blade.php --}}
-<div class="instruction-modal" id="instructionModal" style="display: flex;">
+<div id="instructionModal" class="instruction-modal">
     <div class="instruction-content">
         <div class="text-center mb-3">
             <i class="fas fa-info-circle fa-4x text-primary"></i>
@@ -40,7 +40,7 @@
         </div>
 
         <div class="text-center mt-4">
-            <button class="btn btn-primary btn-lg px-4" id="startTestBtn">
+            <button type="button" class="btn btn-primary btn-lg px-4" id="startTestBtn">
                 <i class="fas fa-play me-2"></i> Saya Mengerti & Mulai Tes
             </button>
         </div>

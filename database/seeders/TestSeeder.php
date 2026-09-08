@@ -99,6 +99,50 @@ class TestSeeder extends Seeder
             ]
         );
         $this->generatePauliQuestions($juniorTest);
+
+        $fullTest = Test::updateOrCreate(
+            ['test_code' => 'PAULI-007'],
+            [
+                'test_name' => 'Pauli Test - Full Statistics',
+                'description' => 'Tes Pauli lengkap dengan 40 kolom dan 52 baris. Total 2040 soal dalam 120 menit. Dirancang untuk analisis statistik mendalam dan grafik kerja.',
+                'duration_minutes' => 120,
+                'total_questions' => 2040,
+                'total_columns' => 40,
+                'rows_per_column' => 52, // 52 baris = 51 penjumlahan per kolom
+                'is_active' => true,
+            ]
+        );
+        $this->generatePauliQuestions($fullTest);
+
+        // Create Pauli Test - Medium Statistics (30 * 30)
+        $mediumTest = Test::updateOrCreate(
+            ['test_code' => 'PAULI-008'],
+            [
+                'test_name' => 'Pauli Test - Medium Statistics',
+                'description' => 'Tes Pauli medium dengan 30 kolom dan 30 baris. Total 870 soal dalam 60 menit. Cocok untuk analisis statistik.',
+                'duration_minutes' => 60,
+                'total_questions' => 870,
+                'total_columns' => 30,
+                'rows_per_column' => 30,
+                'is_active' => true,
+            ]
+        );
+        $this->generatePauliQuestions($mediumTest);
+
+        // Create Pauli Test - Short Statistics (20 * 20)
+        $shortTest = Test::updateOrCreate(
+            ['test_code' => 'PAULI-009'],
+            [
+                'test_name' => 'Pauli Test - Short Statistics',
+                'description' => 'Tes Pauli pendek dengan 20 kolom dan 20 baris. Total 380 soal dalam 30 menit. Untuk latihan statistik dasar.',
+                'duration_minutes' => 30,
+                'total_questions' => 380,
+                'total_columns' => 20,
+                'rows_per_column' => 20,
+                'is_active' => true,
+            ]
+        );
+        $this->generatePauliQuestions($shortTest);
     }
 
     private function generatePauliQuestions($test)

@@ -40,15 +40,18 @@ class Test extends Model
             ->orderBy('column_number')
             ->orderBy('row_number')
             ->get();
-
+        
         $grid = [];
+        
+        // Inisialisasi grid dengan ukuran yang benar
         for ($col = 1; $col <= $this->total_columns; $col++) {
             $column = [];
             for ($row = 1; $row <= $this->rows_per_column; $row++) {
-                $question = $questions->firstWhere(function ($q) use ($col, $row) {
+                // Cari question yang sesuai
+                $question = $questions->firstWhere(function($q) use ($col, $row) {
                     return $q->column_number == $col && $q->row_number == $row;
                 });
-
+                
                 $column[] = [
                     'row' => $row,
                     'value' => $question ? $question->value : rand(0, 9)
@@ -56,11 +59,17 @@ class Test extends Model
             }
             $grid[] = $column;
         }
+        
         return $grid;
     }
 
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function getTotalQuestionsAttribute()
+    {
+        return $this->total_columns * ($this->rows_per_column - 1);
     }
 }
