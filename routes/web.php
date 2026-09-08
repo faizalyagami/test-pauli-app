@@ -144,6 +144,7 @@ Route::middleware(['auth'])->prefix('pauli-test')->name('pauli-test.')->group(fu
     Route::get('/result/{session}', [PauliTestController::class, 'result'])->name('result');
     Route::get('/result/{session}/print', [PauliTestController::class, 'printResult'])->name('result.print');
     Route::get('/result/{session}/pdf', [PauliTestController::class, 'downloadPdf'])->name('result.pdf');
+    Route::get('/statistics/{session}', [PauliTestController::class, 'calculatePauliStatistics'])->name('statistics');
 });
 
 // ========================================

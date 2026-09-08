@@ -1379,15 +1379,145 @@ class PauliTestController extends Controller
         }
     }
 
-    private function getKeterangan($accuracy)
+    public function calculatePauliStatistics($sessionId)
     {
-        if ($accuracy >= 85) {
+        $session = TestSession::with(['applicant', 'test'])->findOrFail($sessionId);
+
+        // Ambil data per interval (3 menit)
+        $answersByLine = TestAnswer::where('test_session_id', $sessionId)
+            ->select(
+                'line_marker',
+                DB::raw('COUNT(*) as total'),
+                DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct')
+            )
+            ->whereNotNull('line_marker')
+            ->groupBy('line_marker')
+            ->orderBy('line_marker')
+            ->get();
+
+        // Data performa per interval
+        $performanceData = [];
+        $lineLabels = [];
+        foreach ($answersByLine as $line) {
+            $performanceData[] = $line->total;
+            $lineLabels[] = $line->line_marker;
+        }
+
+        // ========== GRAFIK I (HITAM) ==========
+        $grafikI = $performanceData;
+
+        // ========== GRAFIK II (MERAH) ==========
+        $grafikII = [];
+        $titikPotong = [
+            [1, 2],   // menit 2-3
+            [5, 6],   // menit 6-7
+            [9, 10],  // menit 10-11
+            [13, 14], // menit 14-15
+            [17, 18]  // menit 18-19
+        ];
+
+        foreach ($titikPotong as $pair) {
+            $idx1 = $pair[0];
+            $idx2 = $pair[1];
+            if (isset($performanceData[$idx1]) && isset($performanceData[$idx2])) {
+                $rataRata = ($performanceData[$idx1] + $performanceData[$idx2]) / 2;
+                $grafikII[] = $rataRata;
+            } else {
+                $grafikII[] = null;
+            }
+        }
+
+        // ========== MENENTUKAN TITIK AWAL ORDINAT (KELIPATAN 50) ==========
+        $minValue = !empty($performanceData) ? min($performanceData) : 0;
+        $maxValue = !empty($performanceData) ? max($performanceData) : 0;
+
+        // Titik awal: kelipatan 50 terdekat di bawah nilai minimum
+        $startPoint = floor($minValue / 50) * 50;
+        // Jika titik awal terlalu rendah, gunakan 0
+        if ($startPoint < 0) $startPoint = 0;
+
+        // Titik akhir: kelipatan 50 terdekat di atas nilai maksimum
+        $endPoint = ceil($maxValue / 50) * 50;
+        if ($endPoint < 50) $endPoint = 50;
+
+        // ========== MENGHITUNG MEAN ==========
+        $totalPerformance = array_sum($performanceData);
+        $mean = count($performanceData) > 0 ? $totalPerformance / count($performanceData) : 0;
+
+        // ========== TINGGI ==========
+        $height = $maxValue - $minValue;
+
+        // ========== TEMPAT PUNCAK ==========
+        $sortedData = $performanceData;
+        arsort($sortedData);
+        $topThree = array_slice($sortedData, 0, 3, true);
+        $peakPositions = array_keys($topThree);
+        $peakPositions = array_map(function ($pos) {
+            return $pos + 1;
+        }, $peakPositions);
+
+        // ========== PENYIMPANGAN ==========
+        $deviations = [];
+        for ($i = 2; $i <= 17 && $i < count($performanceData); $i++) {
+            if (isset($performanceData[$i]) && isset($performanceData[$i - 1])) {
+                $deviations[] = abs($performanceData[$i] - $performanceData[$i - 1]);
+            }
+        }
+        $avgDeviation = count($deviations) > 0 ? array_sum($deviations) / count($deviations) : 0;
+        $deviationPercentage = $mean > 0 ? ($avgDeviation / $mean) * 100 : 0;
+
+        // ========== LQ ==========
+        $totalCorrect = array_sum(array_column($answersByLine->toArray(), 'correct'));
+        $lq = $totalPerformance > 0 ? ($totalCorrect / $totalPerformance) * 100 : 0;
+
+        // ========== SALAH ==========
+        $totalWrong = $totalPerformance - $totalCorrect;
+
+        // ========== DIBETULKAN ==========
+        $revisedCount = TestAnswer::where('test_session_id', $sessionId)
+            ->where('is_revised', true)
+            ->count();
+
+        // ========== DATA UNTUK GRAFIK ==========
+        $chartData = [
+            'labels' => $lineLabels,
+            'grafikI' => $grafikI,
+            'grafikII' => $grafikII,
+            'mean' => $mean,
+            'highest' => $maxValue,
+            'lowest' => $minValue,
+            'height' => $height,
+            'peakPositions' => $peakPositions,
+            'deviationPercentage' => $deviationPercentage,
+            'lq' => $lq,
+            'totalPerformance' => $totalPerformance,
+            'totalCorrect' => $totalCorrect,
+            'totalWrong' => $totalWrong,
+            'revisedCount' => $revisedCount,
+            'startPoint' => $startPoint,
+            'endPoint' => $endPoint,
+            'titikPotong' => $titikPotong,
+        ];
+
+        // ========== KETERANGAN ==========
+        $keterangan = $this->getKeterangan($lq);
+
+        return view('pauli-test.statistics', compact('session', 'chartData', 'keterangan'));
+    }
+
+
+    /**
+     * Get keterangan berdasarkan LQ
+     */
+    private function getKeterangan($lq)
+    {
+        if ($lq >= 85) {
             return 'Sangat Baik';
-        } elseif ($accuracy >= 70) {
+        } elseif ($lq >= 70) {
             return 'Baik';
-        } elseif ($accuracy >= 55) {
+        } elseif ($lq >= 55) {
             return 'Cukup';
-        } elseif ($accuracy >= 40) {
+        } elseif ($lq >= 40) {
             return 'Kurang';
         } else {
             return 'Sangat Kurang';
@@ -1599,5 +1729,52 @@ class PauliTestController extends Controller
 
             return redirect()->back()->with('error', 'Gagal import data: ' . $e->getMessage());
         }
+    }
+    public function statistics($sessionId)
+    {
+        // 1. Ambil data session beserta applicant dan test
+        $session = TestSession::with(['applicant', 'test'])->findOrFail($sessionId);
+
+        // 2. Query jawaban berdasarkan line_marker (interval waktu 3 menitan)
+        $answersByLine = TestAnswer::where('test_session_id', $sessionId)
+            ->select(
+                'line_marker',
+                DB::raw('COUNT(*) as total'),
+                DB::raw('SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct')
+            )
+            ->whereNotNull('line_marker')
+            ->groupBy('line_marker')
+            ->orderBy('line_marker')
+            ->get();
+        dd($answersByLine);
+
+        // 3. Kalkulasi statistik dasar jika belum diset dari method result
+        $totalAnswered = TestAnswer::where('test_session_id', $sessionId)->count();
+        $correctCount = TestAnswer::where('test_session_id', $sessionId)->where('is_correct', true)->count();
+        $wrongCount = TestAnswer::where('test_session_id', $sessionId)->where('is_correct', false)->count();
+        $revisedCount = TestAnswer::where('test_session_id', $sessionId)->where('is_revised', true)->count();
+
+        $statistics = [
+            'total_answered' => $totalAnswered,
+            'correct_count'  => $correctCount,
+            'wrong_count'    => $wrongCount,
+            'revised_count'  => $revisedCount,
+            'accuracy'       => $totalAnswered > 0 ? round(($correctCount / $totalAnswered) * 100, 2) : 0,
+        ];
+
+        // 4. Buat analisis psikologis dasar untuk Blade
+        $analysis = $this->getPsychologicalAnalysis([
+            'accuracy' => $statistics['accuracy'],
+            'consistency' => 0,
+            'endurance' => 100,
+            'avg_time_per_answer' => 0
+        ]);
+
+        return view('pauli-test.statistics', compact(
+            'session',
+            'answersByLine',
+            'statistics',
+            'analysis'
+        ));
     }
 }
