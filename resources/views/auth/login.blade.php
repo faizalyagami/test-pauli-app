@@ -261,16 +261,16 @@
             </div>
 
             <div class="login-body">
-                @if(session('success'))
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle me-2"></i> {{ session('success') }}
-                </div>
+                @if (session('success'))
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i> {{ session('success') }}
+                    </div>
                 @endif
 
-                @if(session('error'))
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i> {{ session('error') }}
-                </div>
+                @if (session('error'))
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i> {{ session('error') }}
+                    </div>
                 @endif
 
                 <form method="POST" action="{{ route('login') }}" id="loginForm">
@@ -284,19 +284,14 @@
                             <span class="input-group-text">
                                 <i class="fas fa-envelope"></i>
                             </span>
-                            <input type="email"
-                                class="form-control @error('email') is-invalid @enderror"
-                                id="email"
-                                name="email"
-                                value="{{ old('email') }}"
-                                placeholder="Enter your email"
-                                required
-                                autofocus>
+                            <input type="email" class="form-control @error('email') is-invalid @enderror"
+                                id="email" name="email" value="{{ old('email') }}" placeholder="Enter your email"
+                                required autofocus>
                         </div>
                         @error('email')
-                        <div class="invalid-feedback d-block mt-1">
-                            {{ $message }}
-                        </div>
+                            <div class="invalid-feedback d-block mt-1">
+                                {{ $message }}
+                            </div>
                         @enderror
                     </div>
 
@@ -308,26 +303,23 @@
                             <span class="input-group-text">
                                 <i class="fas fa-lock"></i>
                             </span>
-                            <input type="password"
-                                class="form-control @error('password') is-invalid @enderror"
-                                id="password"
-                                name="password"
-                                placeholder="Enter your password"
-                                required>
+                            <input type="password" class="form-control @error('password') is-invalid @enderror"
+                                id="password" name="password" placeholder="Enter your password" required>
                             <span class="password-toggle" onclick="togglePassword()">
                                 <i class="fas fa-eye" id="toggleIcon"></i>
                             </span>
                         </div>
                         @error('password')
-                        <div class="invalid-feedback d-block mt-1">
-                            {{ $message }}
-                        </div>
+                            <div class="invalid-feedback d-block mt-1">
+                                {{ $message }}
+                            </div>
                         @enderror
                     </div>
 
                     <div class="checkbox">
                         <label class="d-flex align-items-center">
-                            <input type="checkbox" name="remember" id="remember" {{ old('remember') ? 'checked' : '' }}>
+                            <input type="checkbox" name="remember" id="remember"
+                                {{ old('remember') ? 'checked' : '' }}>
                             <span class="ms-2">Remember me</span>
                         </label>
                         <a href="{{ route('password.request') }}" class="text-decoration-none">
@@ -340,7 +332,7 @@
                     </button>
                 </form>
 
-                <div class="demo-credentials">
+                {{-- <div class="demo-credentials">
                     <h6><i class="fas fa-info-circle me-1"></i> Demo Credentials</h6>
                     <div class="row">
                         <div class="col-md-6">
@@ -364,7 +356,7 @@
                             </p>
                         </div>
                     </div>
-                </div>
+                </div> --}}
 
                 <div class="footer-links">
                     <p class="mb-0">
@@ -407,21 +399,21 @@
         });
 
         // Auto-fill demo credentials (optional - for development)
-        @if(env('APP_ENV') === 'local')
-        const demoEmail = document.getElementById('email');
-        const demoPassword = document.getElementById('password');
+        @if (env('APP_ENV') === 'local')
+            const demoEmail = document.getElementById('email');
+            const demoPassword = document.getElementById('password');
 
-        demoEmail.addEventListener('focus', function() {
-            if (!this.value) {
-                this.value = 'admin@pauli.com';
-            }
-        });
+            demoEmail.addEventListener('focus', function() {
+                if (!this.value) {
+                    this.value = 'admin@pauli.com';
+                }
+            });
 
-        demoPassword.addEventListener('focus', function() {
-            if (!this.value) {
-                this.value = 'password';
-            }
-        });
+            demoPassword.addEventListener('focus', function() {
+                if (!this.value) {
+                    this.value = 'password';
+                }
+            });
         @endif
     </script>
 </body>
